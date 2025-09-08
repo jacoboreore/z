@@ -7,6 +7,7 @@
 //#include "z_walk.h"
 #include "config.h"
 #include "z_calculator.h"
+#include "refine_newton.h"
 
 // int main(int argc, char* argv[]) {
 //     mpfr_set_default_prec(MPFR_PRECISION);
@@ -120,13 +121,37 @@ static void run_suite(double alpha, double tau,
 }
 
 int main() {
-    // deterministic precision
-    mpfr_set_default_prec(256);
+    // // deterministic precision
+    // mpfr_set_default_prec(256);
 
-    // Try a couple of (alpha, tau) settings
-    run_suite(/*alpha*/0.50, /*tau*/0.30);
-    run_suite(/*alpha*/0.65, /*tau*/0.30);
-    run_suite(/*alpha*/0.50, /*tau*/0.20);
+    // // Try a couple of (alpha, tau) settings
+    // run_suite(/*alpha*/0.50, /*tau*/0.30);
+    // run_suite(/*alpha*/0.65, /*tau*/0.30);
+    // run_suite(/*alpha*/0.50, /*tau*/0.20);
+
+    mpfr_t t0, t_star; 
+    mpfr_inits2(MPFR_PRECISION, t0, t_star, (mpfr_ptr)0);
+
+    // Start near the 1st nontrivial zero
+    mpfr_set_str(t0, "21.1", 10, MPFR_RNDN);
+
+    bool ok = newton_refine_root(
+        t_star, 
+        t0,
+        /*tol_abs=*/1e-15,
+        /*tol_step=*/1e-15,
+        /*max_iter=*/20,
+        /*use_threaded_z=*/0
+    );
+
+    printf("Newton %s\n", ok ? "converged" : "stopped");
+    printf("t = "); 
+    mpfr_printf("%.30Rf\n", t0); 
+    printf("\n");
+    mpfr_printf("%.30Rf\n", t_star); 
+    printf("\n");
+
+    mpfr_clears(t0, t_star, (mpfr_ptr)0);
 
     return 0;
 }
