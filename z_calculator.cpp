@@ -28,6 +28,7 @@ void compute_Z(mpfr_t Z, mpfr_t t) {
     if (N < 8) {
         compute_Z_small(Z, t);
     } else {
+        printf("USING THREADING...\n");
         compute_Z_threaded(Z, t);
     }
 }

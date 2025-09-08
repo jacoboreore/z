@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 // Set the precision in bits (~77 decimal places for 256)
-constexpr mpfr_prec_t  MPFR_PRECISION = 250;
+constexpr mpfr_prec_t  MPFR_PRECISION = 100;
 
 // Threshold for detecting near-zero
 constexpr double Z_THRESHOLD = 0.001;

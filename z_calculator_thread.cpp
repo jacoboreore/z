@@ -88,9 +88,9 @@ static void rs_worker(WorkerArgs* A) {
 
         if (i == A->i0 || i == A->i0+1 || i == A->i1-1 || i == A->i1) {
             //std::cerr << "[worker " << A->id << "] i=" << i << " term=";
-            mpfr_out_str(stderr, 10, 18, term, MPFR_RNDN);
+            //mpfr_out_str(stderr, 10, 18, term, MPFR_RNDN);
             //std::cerr << "  cphi=";
-            mpfr_out_str(stderr, 10, 12, cphi, MPFR_RNDN);
+            //mpfr_out_str(stderr, 10, 12, cphi, MPFR_RNDN);
             //std::cerr << "\n";
         }
 
@@ -120,7 +120,7 @@ static void rs_worker(WorkerArgs* A) {
     }
 
     //std::cerr << "[worker " << A->id << "] partial=";
-    mpfr_out_str(stderr, 10, 18, A->partial, MPFR_RNDN);
+    //mpfr_out_str(stderr, 10, 18, A->partial, MPFR_RNDN);
     //std::cerr << "\n";
 
     mpfr_clears(tloc, thetaloc, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd, sqrt_n, term, tmp, (mpfr_ptr)0);

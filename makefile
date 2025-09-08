@@ -15,11 +15,13 @@ SOURCES =                     \
   z_calculator_thread.cpp     \
   z_calculator_small.cpp      \
   z_calculator.cpp            \
+  Z_ball.cpp                  \
   refine_newton.cpp           \
   main.cpp                    
 
 HEADERS = config.h            \
-          logs.h
+          logs.h    \
+          confirm_zero.h          
 
 all: $(TARGET)
 

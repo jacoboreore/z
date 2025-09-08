@@ -12,6 +12,7 @@ inline void compute_theta_big(mpfr_t theta, const mpfr_t t) {
     mpfr_t T; mpfr_init2(T, MPFR_PRECISION);
     mpfr_set_d(T, 100.0, MPFR_RNDN);
     if (mpfr_cmp(t, T) < 0) {
+        //compute_theta_via_lggamma(theta, t);
         compute_theta_via_lggamma(theta, t);
     }
     else{

@@ -66,8 +66,8 @@ void compute_theta_via_lggamma(mpfr_t theta, const mpfr_t t) {
     mpfr_clear(pi);
     mpfr_clear(half_t);
     mpfr_clear(log_pi_term);
+    mpfr_clear(result);
 }
-
 
 // ---------------- Theta(t) ----------------
 // theta(t) = (t/2) log(t/2π) - t/2 - π/8 + 1/(48 t) + O(t^-3)
