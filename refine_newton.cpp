@@ -1,19 +1,20 @@
 #include <cmath>
 #include <algorithm>
 #include "refine_newton.h"
-#include "config.h"
 #include "confirm_zero.h"
+#include "z_calculator_thread.h"
+#include "settings.h"
 
 extern "C++" {
     void compute_Z_small(mpfr_t Z, const mpfr_t t);
-    void compute_Z_threaded(mpfr_t Z, mpfr_t t);
+    void compute_Z_threaded(mpfr_t Z, const mpfr_t t);
 }
 
 /* ==================== Utilities ==================== */
 
 // Pick engine based on N = floor(sqrt(t/2π))
 // static inline bool use_threaded_for_t(const mpfr_t t) {
-//     mpfr_t pi, two_pi, tmp; mpfr_inits2(MPFR_PRECISION, pi, two_pi, tmp, (mpfr_ptr)0);
+//     mpfr_t pi, two_pi, tmp; mpfr_inits2(CFG().mpfr_prec, pi, two_pi, tmp, (mpfr_ptr)0);
 //     mpfr_const_pi(pi, MPFR_RNDN);
 //     mpfr_mul_ui(two_pi, pi, 2, MPFR_RNDN);
 //     mpfr_div(tmp, t, two_pi, MPFR_RNDN);
@@ -25,7 +26,7 @@ extern "C++" {
 
 static inline void eval_Z(mpfr_t Z, mpfr_t t, int use_threaded_z) {
     if (use_threaded_z && use_threaded_for_t(t)) {
-        mpfr_t tc; mpfr_init2(tc, MPFR_PRECISION);
+        mpfr_t tc; mpfr_init2(tc, CFG().mpfr_prec);
         mpfr_set(tc, t, MPFR_RNDN);
         compute_Z_threaded(Z, tc);
         mpfr_clear(tc);
@@ -37,11 +38,11 @@ static inline void eval_Z(mpfr_t Z, mpfr_t t, int use_threaded_z) {
 // π/log(t/2π) with protection
 // static inline double est_spacing(const mpfr_t t) {
 //     mpfr_t pi, two_pi, x, logx, s;
-//     mpfr_inits2(MPFR_PRECISION, pi, two_pi, x, logx, s, (mpfr_ptr)0);
+//     mpfr_inits2(CFG().mpfr_prec, pi, two_pi, x, logx, s, (mpfr_ptr)0);
 //     mpfr_const_pi(pi, MPFR_RNDN);
 //     mpfr_mul_ui(two_pi, pi, 2, MPFR_RNDN);
 //     mpfr_div(x, t, two_pi, MPFR_RNDN);
-//     mpfr_t minx; mpfr_init2(minx, MPFR_PRECISION); mpfr_set_d(minx, 1e-12, MPFR_RNDN);
+//     mpfr_t minx; mpfr_init2(minx, CFG().mpfr_prec); mpfr_set_d(minx, 1e-12, MPFR_RNDN);
 //     if (mpfr_cmp(x, minx) < 0) mpfr_set(x, minx, MPFR_RNDN);
 //     mpfr_log(logx, x, MPFR_RNDN);
 //     if (mpfr_cmp_d(logx, 1e-12) <= 0) { mpfr_clears(pi,two_pi,x,logx,s,minx,(mpfr_ptr)0); return 0.25; }
@@ -54,7 +55,7 @@ static inline void eval_Z(mpfr_t Z, mpfr_t t, int use_threaded_z) {
 // Choose h for derivative (scale with spacing + precision)
 static inline double choose_h(const mpfr_t t) {
     const double s   = est_spacing(t);
-    const double eps = std::ldexp(1.0, -(int)MPFR_PRECISION);   // 2^(-P)
+    const double eps = std::ldexp(1.0, -(int)CFG().mpfr_prec);   // 2^(-P)
     const double h0  = std::pow(eps, 1.0/3.0) * std::max(1.0, std::fabs(mpfr_get_d(t, MPFR_RNDN)));
     return std::clamp(h0, 1e-9, 0.1 * s);
 }
@@ -63,12 +64,12 @@ static inline double choose_h(const mpfr_t t) {
 
 // 3-point central: Z'(t) ≈ (Z(t+h) - Z(t-h)) / (2h)
 static inline void diff_Z_3pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z) {
-    mpfr_t tp, tm, Zp, Zm; mpfr_inits2(MPFR_PRECISION, tp, tm, Zp, Zm, (mpfr_ptr)0);
+    mpfr_t tp, tm, Zp, Zm; mpfr_inits2(CFG().mpfr_prec, tp, tm, Zp, Zm, (mpfr_ptr)0);
     mpfr_set_d(tp,  h, MPFR_RNDN); mpfr_add(tp, t, tp, MPFR_RNDN);
     mpfr_set_d(tm, -h, MPFR_RNDN); mpfr_add(tm, t, tm, MPFR_RNDN);
     eval_Z(Zp, tp, use_threaded_z);
     eval_Z(Zm, tm, use_threaded_z);
-    mpfr_t num; mpfr_init2(num, MPFR_PRECISION);
+    mpfr_t num; mpfr_init2(num, CFG().mpfr_prec);
     mpfr_sub(num, Zp, Zm, MPFR_RNDN);
     mpfr_div_d(dZ, num, 2.0*h, MPFR_RNDN);
     mpfr_clears(tp,tm,Zp,Zm,num,(mpfr_ptr)0);
@@ -77,7 +78,7 @@ static inline void diff_Z_3pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
 // 5-point: Z'(t) ≈ [ -Z(t+2h)+8Z(t+h)-8Z(t-h)+Z(t-2h) ]/(12h)
 static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z) {
     mpfr_t tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2;
-    mpfr_inits2(MPFR_PRECISION, tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, (mpfr_ptr)0);
+    mpfr_inits2(CFG().mpfr_prec, tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, (mpfr_ptr)0);
     mpfr_set_d(tp2, 2*h, MPFR_RNDN); mpfr_add(tp2, t, tp2, MPFR_RNDN);
     mpfr_set_d(tp1,   h, MPFR_RNDN); mpfr_add(tp1, t, tp1, MPFR_RNDN);
     mpfr_set_d(tm1,  -h, MPFR_RNDN); mpfr_add(tm1, t, tm1, MPFR_RNDN);
@@ -86,7 +87,7 @@ static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
     eval_Z(Zp1, tp1, use_threaded_z);
     eval_Z(Zm1, tm1, use_threaded_z);
     eval_Z(Zm2, tm2, use_threaded_z);
-    mpfr_t num, term; mpfr_inits2(MPFR_PRECISION, num, term, (mpfr_ptr)0);
+    mpfr_t num, term; mpfr_inits2(CFG().mpfr_prec, num, term, (mpfr_ptr)0);
     mpfr_neg(num, Zp2, MPFR_RNDN);
     mpfr_mul_ui(term, Zp1, 8, MPFR_RNDN); mpfr_add(num, num, term, MPFR_RNDN);
     mpfr_mul_ui(term, Zm1, 8, MPFR_RNDN); mpfr_sub(num, num, term, MPFR_RNDN);
@@ -107,7 +108,7 @@ static inline bool backtrack_step(
     double min_abs_rel  = 1e-18)
 {
     mpfr_t trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled;
-    mpfr_inits2(MPFR_PRECISION, trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled, (mpfr_ptr)0);
+    mpfr_inits2(CFG().mpfr_prec, trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled, (mpfr_ptr)0);
 
     mpfr_set_ui(frac, 1, MPFR_RNDN);  // λ
     double frac_d = 1.0;
@@ -128,7 +129,7 @@ static inline bool backtrack_step(
         mpfr_sub(trial_t, t, scaled, MPFR_RNDN);
         eval_Z(trial_Z, trial_t, use_threaded_z);
 
-        mpfr_t abs_trial; mpfr_init2(abs_trial, MPFR_PRECISION);
+        mpfr_t abs_trial; mpfr_init2(abs_trial, CFG().mpfr_prec);
         mpfr_abs(abs_trial, trial_Z, MPFR_RNDN);
 
         if (mpfr_cmp(abs_trial, abs_cur) < 0) {
@@ -155,13 +156,13 @@ static inline bool descent_nudge(mpfr_t t, int use_threaded_z) {
     const double s  = est_spacing(t);
     const double h0 = std::max(1e-12, std::min(0.2*s, choose_h(t)));
 
-    mpfr_t tp, tm, Zp, Zm; mpfr_inits2(MPFR_PRECISION, tp, tm, Zp, Zm, (mpfr_ptr)0);
+    mpfr_t tp, tm, Zp, Zm; mpfr_inits2(CFG().mpfr_prec, tp, tm, Zp, Zm, (mpfr_ptr)0);
     mpfr_set_d(tp,  h0, MPFR_RNDN); mpfr_add(tp, t, tp, MPFR_RNDN);
     mpfr_set_d(tm, -h0, MPFR_RNDN); mpfr_add(tm, t, tm, MPFR_RNDN);
     eval_Z(Zp, tp, use_threaded_z);
     eval_Z(Zm, tm, use_threaded_z);
 
-    mpfr_t aP, aM; mpfr_inits2(MPFR_PRECISION, aP, aM, (mpfr_ptr)0);
+    mpfr_t aP, aM; mpfr_inits2(CFG().mpfr_prec, aP, aM, (mpfr_ptr)0);
     mpfr_abs(aP, Zp, MPFR_RNDN);
     mpfr_abs(aM, Zm, MPFR_RNDN);
     bool moved = false;
@@ -183,11 +184,11 @@ bool newton_refine_root(
     int    use_threaded_z)
 {
     mpfr_t t, Z, dZ, delta;
-    mpfr_inits2(MPFR_PRECISION, t, Z, dZ, delta, (mpfr_ptr)0);
+    mpfr_inits2(CFG().mpfr_prec, t, Z, dZ, delta, (mpfr_ptr)0);
     mpfr_set(t, t0, MPFR_RNDN);
 
     // Secant safeguard state
-    mpfr_t t_prev, Z_prev; mpfr_inits2(MPFR_PRECISION, t_prev, Z_prev, (mpfr_ptr)0);
+    mpfr_t t_prev, Z_prev; mpfr_inits2(CFG().mpfr_prec, t_prev, Z_prev, (mpfr_ptr)0);
     bool have_prev = false;
 
     for (int it = 0; it < max_iter; ++it) {
@@ -195,7 +196,7 @@ bool newton_refine_root(
         eval_Z(Z, t, use_threaded_z);
 
         // Stop if |Z| small enough
-        mpfr_t absZ; mpfr_init2(absZ, MPFR_PRECISION);
+        mpfr_t absZ; mpfr_init2(absZ, CFG().mpfr_prec);
         mpfr_abs(absZ, Z, MPFR_RNDN);
         const double absZ_d = mpfr_get_d(absZ, MPFR_RNDN);
         mpfr_clear(absZ);
@@ -212,7 +213,7 @@ bool newton_refine_root(
         bool dZ_ok = !mpfr_zero_p(dZ);
         if (dZ_ok) {
             // If |dZ| is *extremely* tiny, try to improve estimate
-            mpfr_t absd; mpfr_init2(absd, MPFR_PRECISION); mpfr_abs(absd, dZ, MPFR_RNDN);
+            mpfr_t absd; mpfr_init2(absd, CFG().mpfr_prec); mpfr_abs(absd, dZ, MPFR_RNDN);
             if (mpfr_cmp_d(absd, 1e-30) < 0) dZ_ok = false;
             mpfr_clear(absd);
         }
@@ -226,7 +227,7 @@ bool newton_refine_root(
         if (!dZ_ok) {
             if (have_prev) {
                 // Secant delta = Z * (t - t_prev) / (Z - Z_prev)
-                mpfr_t num, den; mpfr_inits2(MPFR_PRECISION, num, den, (mpfr_ptr)0);
+                mpfr_t num, den; mpfr_inits2(CFG().mpfr_prec, num, den, (mpfr_ptr)0);
                 mpfr_sub(den, Z, Z_prev, MPFR_RNDN);
                 if (mpfr_zero_p(den)) { mpfr_clears(num,den,(mpfr_ptr)0); break; }
                 mpfr_sub(num, t, t_prev, MPFR_RNDN);

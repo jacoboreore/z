@@ -2,11 +2,11 @@
 #include <mpfr.h>
 #include <cmath>
 #include <iomanip>
-#include "config.h"
+#include "settings.h"
 
 void compute_y_from_N(mpfr_t y, mpfr_t N) {
 	
-    int prec = MPFR_PRECISION;
+    int prec = CFG().mpfr_prec;
 
 	mpfr_t cumulative, minus_one;
 	mpfr_init2(cumulative, prec);
@@ -28,7 +28,8 @@ void compute_y_from_N(mpfr_t y, mpfr_t N) {
 }
 
 void calculate_next_y_from_spacing(mpfr_t y, mpfr_t next) {
-    int prec = MPFR_PRECISION;
+    
+    int prec = CFG().mpfr_prec;
 
     mpfr_t pi, two_pi, y_div_twopi, log_term, spacing;
 
@@ -59,7 +60,7 @@ void calculate_next_y_from_spacing(mpfr_t y, mpfr_t next) {
 
 void compute_N_from_y(mpfr_t y, mpfr_t N) {
 	
-    int prec = MPFR_PRECISION;
+    int prec = CFG().mpfr_prec;
 
 	mpfr_t cumulative, one, four;
 	mpfr_init2(cumulative, prec);

@@ -1,23 +1,15 @@
 #pragma once
+#include "settings.h"
 #include <mpfr.h>
 
-// forward decls of the two implementations
-void compute_theta_via_lggamma(mpfr_t theta, const mpfr_t t);
-void compute_theta(mpfr_t theta, const mpfr_t t);
+// Riemann–Siegel theta function θ(t)
+// Implementation: real Stirling/Atkinson series
+// θ(t) = t/2·log(t/2π) − t/2 − π/8 + Σ_{k≥1} a_{2k-1}/t^{2k-1}
+// with a1=1/48, a3=7/5760, a5=31/80640, a7=127/430080, a9=511/1216512 …
+// K = CFG().theta_stirling_terms (clamped to available coefficients)
+// Valid for t ≥ 0; θ(0) = −π/8.
+void compute_theta_stirling(mpfr_t theta, const mpfr_t t);
 
-// Provide the FULL definition here (inline, not static)
-inline void compute_theta_big(mpfr_t theta, const mpfr_t t) {
-    
-    // (you can still use MPFR_PRECISION from config.h if included before)
-    mpfr_t T; mpfr_init2(T, MPFR_PRECISION);
-    mpfr_set_d(T, 100.0, MPFR_RNDN);
-    if (mpfr_cmp(t, T) < 0) {
-        //compute_theta_via_lggamma(theta, t);
-        compute_theta_via_lggamma(theta, t);
-    }
-    else{
-        compute_theta(theta, t);
-    }
-    
-    mpfr_clear(T);
-}
+void compute_theta_stirling_K(mpfr_t theta, const mpfr_t t, int K);
+
+

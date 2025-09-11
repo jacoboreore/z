@@ -4,7 +4,7 @@
 #include <mutex>
 #include "z_calculator.h"
 #include "custom_y.h"
-#include "config.h"
+#include "settings.h"
 
 std::mutex print_mutex;
 
@@ -76,7 +76,7 @@ void backward_search(mpfr_t original_N, int precision, float steps = 10000000000
 
 int mountain_walk(mpfr_t start) {
     
-    mpfr_set_default_prec(MPFR_PRECISION);
+    mpfr_set_default_prec(CFG().mpfr_prec);
 
     // Initialize big numbers
     mpfr_t  N, 
@@ -160,10 +160,10 @@ int mountain_walk(mpfr_t start) {
 
             // Launch backward checker in a separate thread
             mpfr_t N_copy;
-            mpfr_init2(N_copy, MPFR_PRECISION);
+            mpfr_init2(N_copy, CFG().mpfr_prec);
             mpfr_set(N_copy, N, MPFR_RNDN);
 
-            std::thread(backward_search, N_copy, MPFR_PRECISION, 100000000000).detach();
+            std::thread(backward_search, N_copy, CFG().mpfr_prec, 100000000000).detach();
         } 
         
 
@@ -189,8 +189,8 @@ int n_range_walk(mpfr_t min_t, mpfr_t max_t ){
             one;
 
     // Convert command-line arguments to mpfr_t for precision
-    mpfr_set_default_prec(MPFR_PRECISION);
-    int prec = MPFR_PRECISION;
+    mpfr_set_default_prec(CFG().mpfr_prec);
+    int prec = CFG().mpfr_prec;
 
 	mpfr_inits2(prec, 
         N, 
@@ -251,8 +251,8 @@ int n_range_walk(mpfr_t min_t, mpfr_t max_t ){
 
 int y_confirmed(mpfr_t start_y){
 
-    mpfr_set_default_prec(MPFR_PRECISION);
-    int prec = MPFR_PRECISION;
+    mpfr_set_default_prec(CFG().mpfr_prec);
+    int prec = CFG().mpfr_prec;
     int steps = 1000000, cont_steps = 0;
     int switch_dir; // 1=up, 0=down
 
@@ -327,7 +327,7 @@ int y_confirmed(mpfr_t start_y){
         // Calculate jacob_refined
         compute_y_from_N(calculated_y, N);
         compute_Z(z1, calculated_y);
-        //compute_Z(z1, calculated_y, MPFR_PRECISION);
+        //compute_Z(z1, calculated_y, CFG().mpfr_prec);
         mpfr_abs(z1, z1, MPFR_RNDN);
 
         if (mpfr_cmp(z1, z2) < 0){

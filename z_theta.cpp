@@ -1,100 +1,95 @@
+#include "settings.h"
+#include <algorithm>
 #include <mpfr.h>
 #include <mpc.h>
-#include <thread>
-#include <vector>
-#include <cmath>
-#include <iostream>
-#include <atomic>
-#include "config.h"
 
-// ------------------------------------------------------------------
-// Exact Riemann–Siegel theta via log-Gamma
-// θ(t) = Im( log Γ(1/4 + i t/2) ) − (t/2) log π
-// This is numerically stable for small/medium t.
-// ------------------------------------------------------------------
-// Exact Riemann–Siegel theta via complex log-Gamma:
-// θ(t) = Im(log Γ(1/4 + i t/2)) − (t/2) log π
-void compute_theta_via_lggamma(mpfr_t theta, const mpfr_t t) {
-    // Initialize MPFR and MPC variables
-    mpc_t complex_arg, log_gamma;
-    mpfr_t temp, pi, half_t, log_pi_term, result;
-    
-    mpc_init2(complex_arg, MPFR_PRECISION);
-    mpc_init2(log_gamma, MPFR_PRECISION);
-    mpfr_init2(temp, MPFR_PRECISION);
-    mpfr_init2(pi, MPFR_PRECISION);
-    mpfr_init2(half_t, MPFR_PRECISION);
-    mpfr_init2(log_pi_term, MPFR_PRECISION);
-    mpfr_init2(result, MPFR_PRECISION);
-    
-    // Compute 1/4 + i t/2
-    mpfr_set_d(temp, 0.25, MPFR_RNDN);
-    mpfr_div_si(half_t, t, 2, MPFR_RNDN);
-    mpc_set_fr_fr(complex_arg, temp, half_t, MPC_RNDNN); // Set real and imaginary parts
-    
-    // Compute log Γ(1/4 + i t/2)
-    // Fallback: Compute using mpfr_lngamma for real and imaginary parts
-    // Note: This is an approximation and may not be as accurate for complex args
-    mpfr_t re, im;
-    mpfr_init2(re, MPFR_PRECISION);
-    mpfr_init2(im, MPFR_PRECISION);
-    mpfr_set_d(re, 0.25, MPFR_RNDN);
-    mpfr_set(im, half_t, MPFR_RNDN);
-    mpfr_lngamma(re, re, MPFR_RNDN); // Real part (approximation)
-    mpc_set_fr(log_gamma, re, MPC_RNDNN); // Set real part, imaginary part approximated as 0
-    mpfr_clear(re);
-    mpfr_clear(im);
-    // std::cerr << "Warning: Using mpfr_lngamma fallback, may be inaccurate for complex args\n";
-    
-    // Get imaginary part
-    mpc_imag(result, log_gamma, MPFR_RNDN);
-    
-    // Compute −(t/2) log π
-    mpfr_const_pi(pi, MPFR_RNDN);
-    mpfr_log(temp, pi, MPFR_RNDN);
-    mpfr_mul(half_t, t, temp, MPFR_RNDN);
-    mpfr_div_si(log_pi_term, half_t, 2, MPFR_RNDN);
-    mpfr_neg(log_pi_term, log_pi_term, MPFR_RNDN);
-    
-    // Final result
-    mpfr_add(theta, result, log_pi_term, MPFR_RNDN);
-    
-    // Clean up
-    mpc_clear(complex_arg);
-    mpc_clear(log_gamma);
-    mpfr_clear(temp);
-    mpfr_clear(pi);
-    mpfr_clear(half_t);
-    mpfr_clear(log_pi_term);
-    mpfr_clear(result);
-}
+// Coefficients c_m up to m=9 for:
+// θ(t) = t/2 log(t/(2π)) - t/2 - π/8 + Σ c_m / t^{2m-1}
+//
+// Values are the standard ones derived from Bernoulli numbers.
+// c1 = 1/48
+// c2 = 7/5760
+// c3 = 31/80640
+// c4 = 127/430080
+// c5 = 511/1216512
+// c6 = 1414477/319334400
+// c7 = 8191/3670016
+// c8 = 118518239/135895449600
+// c9 = 5749691557/1634992128000
+//
+// (You can trim/extend as you like.)
+struct Rat
+{
+    long long num;
+    long long den;
+};
 
-// ---------------- Theta(t) ----------------
-// theta(t) = (t/2) log(t/2π) - t/2 - π/8 + 1/(48 t) + O(t^-3)
-void compute_theta(
-        mpfr_t theta, 
-        const mpfr_t t) {
-    
-    mpfr_t pi, two_pi, x;
-    mpfr_inits2(MPFR_PRECISION, pi, two_pi, x, (mpfr_ptr)0);
-    
+static const Rat C[] = {
+    {0, 1}, // dummy for 0-index
+    {1, 48},
+    {7, 5760},
+    {31, 80640},
+    {127, 430080},
+    {511, 1216512},
+    {1414477, 319334400},
+    {8191, 3670016},
+    {118518239, 135895449600LL},
+    {5749691557LL, 1634992128000LL},
+};
+
+void compute_theta_stirling_K(mpfr_t theta, const mpfr_t t, int K)
+{
+    const mpfr_prec_t P = CFG().mpfr_prec;
+    if (K < 0)
+        K = 0;
+    if (K > 9)
+        K = 9; // table cap; extend table if needed
+
+    mpfr_t pi, two_pi, log_term, base, inv_t, pwr, term, tmp;
+    mpfr_inits2(P, pi, two_pi, log_term, base, inv_t, pwr, term, tmp, (mpfr_ptr)0);
+
+    // π and 2π
     mpfr_const_pi(pi, MPFR_RNDN);
     mpfr_mul_ui(two_pi, pi, 2, MPFR_RNDN);
 
-    mpfr_div(x, t, two_pi, MPFR_RNDN);      // t/(2π)
-    mpfr_log(x, x, MPFR_RNDN);              // log(t/2π)
-    mpfr_mul(theta, x, t, MPFR_RNDN);       // t*log(...)
-    mpfr_div_ui(theta, theta, 2, MPFR_RNDN);// (t/2) log(...)
+    // base = t/(2π)
+    mpfr_div(base, t, two_pi, MPFR_RNDN);
 
-    mpfr_div_ui(x, t, 2, MPFR_RNDN);        // t/2
-    mpfr_sub(theta, theta, x, MPFR_RNDN);   // ... - t/2
+    // log_term = (t/2) * log( t/(2π) )
+    mpfr_log(log_term, base, MPFR_RNDN);
+    mpfr_mul(log_term, log_term, t, MPFR_RNDN);
+    mpfr_div_ui(log_term, log_term, 2, MPFR_RNDN);
 
-    mpfr_div_ui(x, pi, 8, MPFR_RNDN);       // π/8
-    mpfr_sub(theta, theta, x, MPFR_RNDN);   // ... - π/8
+    // theta = log_term - t/2 - π/8
+    mpfr_set(theta, log_term, MPFR_RNDN);
+    mpfr_div_ui(tmp, t, 2, MPFR_RNDN);
+    mpfr_sub(theta, theta, tmp, MPFR_RNDN);
+    mpfr_div_ui(tmp, pi, 8, MPFR_RNDN);
+    mpfr_sub(theta, theta, tmp, MPFR_RNDN);
 
-    mpfr_mul_ui(x, t, 48, MPFR_RNDN);       // 48 t
-    mpfr_ui_div(x, 1, x, MPFR_RNDN);        // 1/(48 t)
-    mpfr_add(theta, theta, x, MPFR_RNDN);   // ... + 1/(48 t)
+    // series Σ c_m / t^{2m-1}
+    mpfr_ui_div(inv_t, 1, t, MPFR_RNDN); // 1/t
+    mpfr_set(pwr, inv_t, MPFR_RNDN);     // pwr = 1/t
 
-    mpfr_clears(pi, two_pi, x, (mpfr_ptr)0);
+    for (int m = 1; m <= K; ++m)
+    {
+        // Ensure pwr = 1 / t^{2m-1}
+        if (m > 1)
+        {
+            // multiply by (1/t)^2 each step
+            mpfr_mul(pwr, pwr, inv_t, MPFR_RNDN);
+            mpfr_mul(pwr, pwr, inv_t, MPFR_RNDN);
+        }
+        mpfr_set_si(term, C[m].num, MPFR_RNDN);
+        mpfr_div_si(term, term, C[m].den, MPFR_RNDN); // term = c_m (as mpfr)
+        mpfr_mul(term, term, pwr, MPFR_RNDN);         // c_m / t^{2m-1}
+        mpfr_add(theta, theta, term, MPFR_RNDN);
+    }
+
+    mpfr_clears(pi, two_pi, log_term, base, inv_t, pwr, term, tmp, (mpfr_ptr)0);
+}
+
+void compute_theta_stirling(mpfr_t theta, const mpfr_t t)
+{
+    compute_theta_stirling_K(theta, t, CFG().theta_stirling_terms);
 }
