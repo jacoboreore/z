@@ -3,7 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
-#include "z_calculator_thread.h"
+#include "z_calculator_rs_gabcke.h"
 #include "z_calculator_small.h"
 #include "confirm_zero.h"
 #include "refine_newton.h"
@@ -11,6 +11,7 @@
 #include "z_theta.h"
 #include "z_ball.h"
 #include "logs.h"
+#include "utils.h"
 
 // small helper for pretty MPFR prints (decimal, base=10)
 static inline void print_val(const char *tag, const mpfr_t x, int digits = 24)
@@ -44,17 +45,20 @@ void compute_Z(mpfr_t Z, mpfr_t t)
 {
     long N = rs_N(t);
 
-    if (N < 8)
+    if (N < 20)
     {
         compute_Z_small(Z, t);
     }
     else
     {
-        // printf("USING THREADING...\n");  // keep or gate by a verbose flag
-        compute_Z_threaded(Z, t);
+        compute_Z_rs_gabcke(Z, t);
     }
+
+    // record best-so-far across the entire app
+    best_update(Z, t);
 }
 
+// Z ball calculation for rigor certification
 void compute_Z_ball(mpfr_t Z, mpfr_t t)
 {
     long N = rs_N(t);
@@ -286,10 +290,10 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
     // --- Logs
     std::cerr << "[prefilter] N=" << N << " K=" << K
               << " alpha=" << alpha << " tau=" << tau << "\n";
-    log_mpfr("[prefilter] |2S_K|", abs_twoS, 18);
-    log_mpfr("[prefilter] 2*T_K", tail, 18);
-    log_mpfr("[prefilter] R", R, 18);
-    log_mpfr("[prefilter] L", L, 18);
+    //log_mpfr("[prefilter] |2S_K|", abs_twoS, 18);
+    //log_mpfr("[prefilter] 2*T_K", tail, 18);
+    //log_mpfr("[prefilter] R", R, 18);
+    //log_mpfr("[prefilter] L", L, 18);
     std::cerr << "[prefilter] keep=" << (keep ? "YES" : "NO") << "\n";
 
     // --- Cleanup

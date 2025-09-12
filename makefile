@@ -1,9 +1,11 @@
-# Makefile for z_calculator_thread project
+# Makefile for Z project
 
 CXX      = g++
 CXXFLAGS = -O2 -std=c++20 -MMD -MP
 LDFLAGS  = -pthread
-LIBS     = -lmpc -lmpfr -lgmp
+
+# add pure headers here 
+LIBS     = -lmpc -lmpfr -lgmp -fopenmp
 
 SRC_DIR  = .
 OBJ_DIR  = build
@@ -14,6 +16,7 @@ SOURCES = \
   custom_y.cpp                \
   z_theta.cpp                 \
   z_walk.cpp                  \
+  z_calculator_rs_gabcke.cpp  \
   z_calculator_thread.cpp     \
   z_calculator_small.cpp      \
   z_calculator.cpp            \
@@ -21,6 +24,7 @@ SOURCES = \
   refine_newton.cpp           \
   settings.cpp                \
   cli.cpp                     \
+  utils.cpp                   \
   main.cpp
 
 OBJECTS = $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))

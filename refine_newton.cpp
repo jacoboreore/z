@@ -1,30 +1,87 @@
 #include <cmath>
 #include <algorithm>
+#include <sstream>
 #include "refine_newton.h"
-#include "confirm_zero.h"        // est_spacing, use_threaded_for_t
-#include "z_calculator_small.h"  // compute_Z_small(...)
-#include "z_calculator_thread.h" // compute_Z_threaded(... non-const t)
+#include "confirm_zero.h"           // est_spacing, use_threaded_for_t
+//#include "z_calculator_small.h"     // compute_Z_small(...)
+#include "z_calculator_thread.h"    // compute_Z_threaded(... non-const t)
+#include "z_calculator.h" 
+//#include "z_calculator_rs_gabcke.h" // compute_Z_threaded(... non-const t)
 #include "settings.h"
+#include "logs.h"
+#include "utils.h"
 
-/* ==================== Utilities ==================== */
-
-// Evaluate Z(t) using small/threaded paths as requested
-static inline void eval_Z(mpfr_t Z, mpfr_t t, int use_threaded_z)
+static inline double stage_step_tol(const mpfr_t t, double tol_abs)
 {
-    if (use_threaded_z && use_threaded_for_t(t))
-    {
-        // compute_Z_threaded takes non-const t; pass a temp
-        mpfr_t tc;
-        mpfr_init2(tc, CFG().mpfr_prec);
-        mpfr_set(tc, t, MPFR_RNDN);
-        compute_Z_threaded(Z, tc);
-        mpfr_clear(tc);
-    }
-    else
-    {
-        compute_Z_small(Z, t);
-    }
+    // Step limit relative to local zero spacing.
+    // Early stages allow bigger moves; later stages get tighter.
+    const double s = est_spacing(t);
+    const double k = std::clamp(std::sqrt(std::max(tol_abs, 1e-20)), 1e-4, 0.2);
+    const double raw = k * s;                     // fraction of spacing
+    return std::clamp(raw, CFG().h_min, 0.2 * s); // hard caps
 }
+
+bool refine_in_stages(mpfr_t t_out, const mpfr_t t0, int use_threaded_z)
+{
+    // target absolute |Z| per stage — tweak as you like
+    static const double ABS_TOLS[] = {
+        1e-2, 1e-3, 1e-4, 1e-6, 1e-8, 1e-10,
+        1e-12, 1e-16, 1e-20, 1e-28, 1e-40, 1e-56};
+
+    static const int N_STAGES = (int)(sizeof(ABS_TOLS) / sizeof(ABS_TOLS[0]));
+
+    // per-stage iteration budget — small but enough, because we re-seed each time
+    const int iters_per_stage = std::max(6, CFG().newton_max_iter);
+
+    mpfr_t t_cur, t_next;
+    mpfr_inits2(CFG().mpfr_prec, t_cur, t_next, (mpfr_ptr)0);
+    mpfr_set(t_cur, t0, MPFR_RNDN);
+
+    bool final_ok = false;
+
+    for (int i = 0; i < N_STAGES; ++i)
+    {
+        const double tol_abs = ABS_TOLS[i];
+        const double tol_step = stage_step_tol(t_cur, tol_abs);
+
+        // run one Newton pass from current estimate
+        bool ok = newton_refine_root(
+            t_next,
+            t_cur,
+            tol_abs,
+            tol_step,
+            iters_per_stage,
+            use_threaded_z);
+
+        // accept whatever improvement we got as the seed for the next stage
+        mpfr_set(t_cur, t_next, MPFR_RNDN);
+
+        // remember whether we hit this stage’s target
+        final_ok = ok; // will be overwritten each stage; last stage decides
+    }
+
+    mpfr_set(t_out, t_cur, MPFR_RNDN);
+    mpfr_clears(t_cur, t_next, (mpfr_ptr)0);
+    return final_ok;
+}
+
+// // Evaluate Z(t) using small/threaded paths as requested
+// static inline void eval_Z(mpfr_t Z, mpfr_t t, int use_threaded_z)
+// {
+//     if (use_threaded_z && use_threaded_for_t(t))
+//     {
+//         // compute_Z_threaded takes non-const t; pass a temp
+//         mpfr_t tc;
+//         mpfr_init2(tc, CFG().mpfr_prec);
+//         mpfr_set(tc, t, MPFR_RNDN);
+//         compute_Z_rs_gabcke(Z, tc);
+//         mpfr_clear(tc);
+//     }
+//     else
+//     {
+//         compute_Z_small(Z, t);
+//     }
+// }
 
 // Choose h for derivative (scale with spacing + precision)
 static inline double choose_h(const mpfr_t t)
@@ -47,8 +104,8 @@ static inline void diff_Z_3pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
     mpfr_add(tp, t, tp, MPFR_RNDN);
     mpfr_set_d(tm, -h, MPFR_RNDN);
     mpfr_add(tm, t, tm, MPFR_RNDN);
-    eval_Z(Zp, tp, use_threaded_z);
-    eval_Z(Zm, tm, use_threaded_z);
+    compute_Z(Zp, tp);
+    compute_Z(Zm, tm);
     mpfr_t num;
     mpfr_init2(num, CFG().mpfr_prec);
     mpfr_sub(num, Zp, Zm, MPFR_RNDN);
@@ -69,10 +126,10 @@ static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
     mpfr_add(tm1, t, tm1, MPFR_RNDN);
     mpfr_set_d(tm2, -2 * h, MPFR_RNDN);
     mpfr_add(tm2, t, tm2, MPFR_RNDN);
-    eval_Z(Zp2, tp2, use_threaded_z);
-    eval_Z(Zp1, tp1, use_threaded_z);
-    eval_Z(Zm1, tm1, use_threaded_z);
-    eval_Z(Zm2, tm2, use_threaded_z);
+    compute_Z(Zp2, tp2);
+    compute_Z(Zp1, tp1);
+    compute_Z(Zm1, tm1);
+    compute_Z(Zm2, tm2);
     mpfr_t num, term;
     mpfr_inits2(CFG().mpfr_prec, num, term, (mpfr_ptr)0);
     mpfr_neg(num, Zp2, MPFR_RNDN);
@@ -118,7 +175,7 @@ static inline bool backtrack_step(
             break;
 
         mpfr_sub(trial_t, t, scaled, MPFR_RNDN);
-        eval_Z(trial_Z, trial_t, use_threaded_z);
+        compute_Z(trial_Z, trial_t);
 
         mpfr_t abs_trial;
         mpfr_init2(abs_trial, CFG().mpfr_prec);
@@ -157,14 +214,16 @@ static inline bool descent_nudge(mpfr_t t, int use_threaded_z)
     mpfr_add(tp, t, tp, MPFR_RNDN);
     mpfr_set_d(tm, -h0, MPFR_RNDN);
     mpfr_add(tm, t, tm, MPFR_RNDN);
-    eval_Z(Zp, tp, use_threaded_z);
-    eval_Z(Zm, tm, use_threaded_z);
+    compute_Z(Zp, tp);
+    compute_Z(Zm, tm);
 
     mpfr_t aP, aM;
     mpfr_inits2(CFG().mpfr_prec, aP, aM, (mpfr_ptr)0);
+
     mpfr_abs(aP, Zp, MPFR_RNDN);
     mpfr_abs(aM, Zm, MPFR_RNDN);
     bool moved = false;
+
     if (mpfr_cmp(aP, aM) < 0)
     {
         mpfr_set(t, tp, MPFR_RNDN);
@@ -183,6 +242,7 @@ static inline bool descent_nudge(mpfr_t t, int use_threaded_z)
 /* ==================== Newton driver ==================== */
 
 bool newton_refine_root(
+
     mpfr_t t_out,
     const mpfr_t t0,
     double tol_abs,
@@ -192,17 +252,19 @@ bool newton_refine_root(
 {
     mpfr_t t, Z, dZ, delta;
     mpfr_inits2(CFG().mpfr_prec, t, Z, dZ, delta, (mpfr_ptr)0);
+
     mpfr_set(t, t0, MPFR_RNDN);
 
     // Secant safeguard state
     mpfr_t t_prev, Z_prev;
     mpfr_inits2(CFG().mpfr_prec, t_prev, Z_prev, (mpfr_ptr)0);
+
     bool have_prev = false;
 
     for (int it = 0; it < max_iter; ++it)
     {
         // Evaluate Z(t)
-        eval_Z(Z, t, use_threaded_z);
+        compute_Z(Z, t);
 
         // Stop if |Z| small enough
         mpfr_t absZ;
@@ -284,7 +346,7 @@ bool newton_refine_root(
             d_abs = step_max;
         }
 
-        // If step already tiny, accept
+        // If step already tiny, accept, A good zero foud based on the configured tol
         if (d_abs <= tol_step)
         {
             mpfr_set(t_out, t, MPFR_RNDN);
@@ -312,5 +374,6 @@ bool newton_refine_root(
     // No convergence: return last t
     mpfr_set(t_out, t, MPFR_RNDN);
     mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+
     return false;
 }

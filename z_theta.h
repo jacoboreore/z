@@ -11,3 +11,8 @@
 void compute_theta_stirling(mpfr_t theta, const mpfr_t t);
 
 void compute_theta_stirling_K(mpfr_t theta, const mpfr_t t, int K);
+
+void compute_theta_stirling_opt(mpfr_t theta, mpfr_srcptr t);
+
+// no used but implemented for t values below 2000
+// void compute_theta_lanczos(mpfr_t theta, const mpfr_t t);

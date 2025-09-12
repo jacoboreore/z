@@ -3,6 +3,7 @@
 #include "z_calculator.h"
 #include "z_theta.h"
 #include "z_calculator_small.h"
+#include "z_calculator_rs_gabcke.h"
 #include "z_calculator_thread.h"
 #include <cmath>
 
@@ -72,7 +73,7 @@ void compute_Z_ball_verbose(ZBallV &B, const mpfr_t t)
         mpfr_t tc;
         mpfr_init2(tc, CFG().mpfr_prec);
         mpfr_set(tc, t, MPFR_RNDN);
-        compute_Z_threaded(B.mid, tc);
+        compute_Z_rs_gabcke(B.mid, tc);
         mpfr_clear(tc);
     }
     else

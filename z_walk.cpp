@@ -52,7 +52,10 @@ static inline void smart_step(const mpfr_t z_prev,
 
 // Walk N downward in big leaps to see if Z keeps improving.
 // All MPFR state is local to this thread. No set_default_prec here.
-static void backward_search_uj(uint64_t N0, mpfr_prec_t P, uint64_t steps = 1000000ULL, uint64_t stride = 100000ULL)
+static void backward_search_uj(
+    uint64_t N0, mpfr_prec_t P, 
+    uint64_t steps = 1000000ULL, 
+    uint64_t stride = 100000ULL)
 {
     mpfr_t N, y, z, best_z;
     mpfr_inits2(P, N, y, z, best_z, (mpfr_ptr)0);
