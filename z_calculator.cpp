@@ -12,7 +12,6 @@
 #include "z_ball.h"
 #include "logs.h"
 
-
 // small helper for pretty MPFR prints (decimal, base=10)
 static inline void print_val(const char *tag, const mpfr_t x, int digits = 24)
 {
@@ -21,11 +20,11 @@ static inline void print_val(const char *tag, const mpfr_t x, int digits = 24)
     std::cout << "\n";
 }
 
-static long rs_N(const mpfr_t t)
+long rs_N(const mpfr_t t)
 {
     mpfr_t pi, two_pi, tmp;
     mpfr_inits2(CFG().mpfr_prec, pi, two_pi, tmp, (mpfr_ptr)0);
-    
+
     mpfr_const_pi(pi, MPFR_RNDN);
     mpfr_mul_ui(two_pi, pi, 2, MPFR_RNDN);
     mpfr_div(tmp, t, two_pi, MPFR_RNDN);
@@ -55,7 +54,6 @@ void compute_Z(mpfr_t Z, mpfr_t t)
         compute_Z_threaded(Z, t);
     }
 }
-
 
 void compute_Z_ball(mpfr_t Z, mpfr_t t)
 {
@@ -144,12 +142,15 @@ void compute_Z_ball(mpfr_t Z, mpfr_t t)
     zballv_clear(b);
 }
 
-
 bool z_prefilter(const mpfr_t t, double alpha, double tau)
 {
+    print_val("PRE FILTER PROCESS t = ", t, 24);
+
     // Clamp alpha to sensible bounds
-    if (alpha <= 0.0) alpha = 0.25;
-    if (alpha >= 1.0) alpha = 0.8;
+    if (alpha <= 0.0)
+        alpha = 0.25;
+    if (alpha >= 1.0)
+        alpha = 0.8;
 
     // --- Compute N first with a tiny, self-contained MPFR scope (no leaks on early return)
     long N;
@@ -161,7 +162,8 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
         mpfr_div(tmp, t, two_pi, MPFR_RNDN);
         mpfr_sqrt(tmp, tmp, MPFR_RNDN);
         N = mpfr_get_si(tmp, MPFR_RNDN);
-        if (N < 1) N = 1;
+        if (N < 1)
+            N = 1;
         mpfr_clears(pi, two_pi, tmp, (mpfr_ptr)0);
     }
 
@@ -174,15 +176,19 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
         double az = std::fabs(mpfr_get_d(Zs, MPFR_RNDN));
         mpfr_clear(Zs);
 
-        if (az <= 1e-2)  return true;   // near zero → keep
-        if (az >= 0.3)   return false;  // clearly far → drop
-        return true;                     // ambiguous? favor recall
+        if (az <= 1e-2)
+            return true; // near zero → keep
+        if (az >= 0.3)
+            return false; // clearly far → drop
+        return true;      // ambiguous? favor recall
     }
 
     // --- Choose K = floor(alpha*N), bounded to [min(4,N), N]
     long K = (long)std::floor(alpha * (double)N);
-    if (K < 4) K = (N >= 4 ? 4 : N);
-    if (K > N) K = N;
+    if (K < 4)
+        K = (N >= 4 ? 4 : N);
+    if (K > N)
+        K = N;
 
     // --- Now allocate all MPFR vars we need for the main path
     mpfr_t theta, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd;
@@ -214,7 +220,7 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
     {
         // Δφ = t * log1p(1/i)
         mpfr_set_ui(n, (unsigned long)i, MPFR_RNDN);
-        mpfr_ui_div(q, 1, n, MPFR_RNDN);        // q = 1/i
+        mpfr_ui_div(q, 1, n, MPFR_RNDN); // q = 1/i
         mpfr_log1p(dphi, q, MPFR_RNDN);
         mpfr_mul(dphi, dphi, t, MPFR_RNDN);
 
@@ -227,12 +233,12 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
         // Rotate: (cphi, sphi) ← (cphi, sphi) * R(−Δφ)
         // new_c = c*cd + s*sd
         mpfr_mul(new_c, cphi, cd, MPFR_RNDN);
-        mpfr_mul(tmp,  sphi, sd, MPFR_RNDN);
+        mpfr_mul(tmp, sphi, sd, MPFR_RNDN);
         mpfr_add(new_c, new_c, tmp, MPFR_RNDN);
 
         // new_s = s*cd − c*sd
         mpfr_mul(new_s, sphi, cd, MPFR_RNDN);
-        mpfr_mul(tmp,  cphi, sd, MPFR_RNDN);
+        mpfr_mul(tmp, cphi, sd, MPFR_RNDN);
         mpfr_sub(new_s, new_s, tmp, MPFR_RNDN);
 
         mpfr_set(cphi, new_c, MPFR_RNDN);
@@ -271,7 +277,7 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
     mpfr_sub(L, L, R, MPFR_RNDN);
 
     // τ_eff = τ + c / √N  (slightly relaxed for small N)
-    double tau_boost = 0.50; // tune: 0.4–0.7 works well
+    double tau_boost = CFG().prefilter_tau_boost; // tune: 0.4–0.7 works well
     double tau_eff = tau + tau_boost / std::sqrt((double)N);
     mpfr_set_d(TauEff, tau_eff, MPFR_RNDN);
 

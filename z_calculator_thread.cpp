@@ -1,6 +1,6 @@
 #include "z_theta.h"
 #include "logs.h"
-#include "settings.h" 
+#include "settings.h"
 #include "z_calculator.h"
 #include <mpfr.h>
 #include <mpc.h>
@@ -187,7 +187,7 @@ void compute_Z_threaded(mpfr_t Z, mpfr_t t)
 
     mpfr_t theta;
     mpfr_init2(theta, CFG().mpfr_prec);
-    
+
     compute_theta_stirling(theta, t);
 
     if (CFG().rs_log_debug)
@@ -301,4 +301,3 @@ void compute_Z_threaded(mpfr_t Z, mpfr_t t)
 
     mpfr_clears(theta, S, (mpfr_ptr)0);
 }
-

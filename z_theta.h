@@ -11,5 +11,3 @@
 void compute_theta_stirling(mpfr_t theta, const mpfr_t t);
 
 void compute_theta_stirling_K(mpfr_t theta, const mpfr_t t, int K);
-
-
