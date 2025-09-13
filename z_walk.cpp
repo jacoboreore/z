@@ -301,7 +301,9 @@ void y_confirmed(mpfr_t start_y)
     mpfr_inits2(CFG().mpfr_prec, N, z_prev, z_cur, y_next, step, yN, y_best, Np, Nm, yp, ym, zp, zm, (mpfr_ptr)0);
 
     // next y by spacing
-    calculate_next_y_from_spacing(y_next, start_y);
+    //calculate_next_y_from_spacing(y_next, start_y);
+    mpfr_set(y_next, start_y, MPFR_RNDN);
+
     LOGMP("Process params\n---> start_y %.12Rf\nNext y %.12Rf\n", start_y, y_next);
 
     // |Z| at next y
