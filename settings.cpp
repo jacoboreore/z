@@ -72,6 +72,9 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
 
     else if (ieq(k, "use_threaded_z"))
         c.use_threaded_z = to_bool(v);
+    else if (ieq(k, "use_threaded_newton"))
+        c.use_threaded_newton = to_bool(v);
+
     else if (ieq(k, "ball_mid_threshold"))
         c.ball_mid_threshold = std::stod(v);
     else if (ieq(k, "h_min"))
@@ -185,26 +188,27 @@ void print_config(const Config &c)
 {
     std::cout.setf(std::ios::boolalpha);
     std::cout
-        << "mpfr_prec            = " << c.mpfr_prec << "\n"
-        << "prefilter_alpha      = " << c.prefilter_alpha << "\n"
-        << "prefilter_tau        = " << c.prefilter_tau << "\n"
-        << "prefilter_tau_boost  = " << c.prefilter_tau_boost << "\n"
-        << "newton_tol_abs       = " << c.newton_tol_abs << "\n"
-        << "newton_tol_step      = " << c.newton_tol_step << "\n"
-        << "newton_max_iter      = " << c.newton_max_iter << "\n"
-        << "use_threaded_z       = " << c.use_threaded_z << "\n"
-        << "ball_mid_threshold   = " << c.ball_mid_threshold << "\n"
-        << "h_min                = " << c.h_min << "\n"
-        << "h_frac_spacing       = " << c.h_frac_spacing << "\n"
-        << "step_frac_spacing    = " << c.step_frac_spacing << "\n"
-        << "rs_half_weight_last   = " << c.rs_half_weight_last << "\n"
-        << "rs_tail_C             = " << c.rs_tail_C << "\n"
-        << "min_threads           = " << c.min_threads << "\n"
-        << "max_threads           = " << c.max_threads << "\n"
-        << "rs_min_N_for_threads  = " << c.rs_min_N_for_threads << "\n"
-        << "theta_exact_switch_t  = " << c.theta_exact_switch_t << "\n"
-        << "rs_log_debug          = " << c.rs_log_debug << "\n"
-        << "rs_log_digits         = " << c.rs_log_digits << "\n"
+        << "mpfr_prec               = " << c.mpfr_prec << "\n"
+        << "prefilter_alpha         = " << c.prefilter_alpha << "\n"
+        << "prefilter_tau           = " << c.prefilter_tau << "\n"
+        << "prefilter_tau_boost     = " << c.prefilter_tau_boost << "\n"
+        << "newton_tol_abs          = " << c.newton_tol_abs << "\n"
+        << "newton_tol_step         = " << c.newton_tol_step << "\n"
+        << "newton_max_iter         = " << c.newton_max_iter << "\n"
+        << "use_threaded_z          = " << c.use_threaded_z << "\n"
+        << "use_threaded_newton     = " << c.use_threaded_newton << "\n"
+        << "ball_mid_threshold      = " << c.ball_mid_threshold << "\n"
+        << "h_min                   = " << c.h_min << "\n"
+        << "h_frac_spacing          = " << c.h_frac_spacing << "\n"
+        << "step_frac_spacing       = " << c.step_frac_spacing << "\n"
+        << "rs_half_weight_last     = " << c.rs_half_weight_last << "\n"
+        << "rs_tail_C               = " << c.rs_tail_C << "\n"
+        << "min_threads             = " << c.min_threads << "\n"
+        << "max_threads             = " << c.max_threads << "\n"
+        << "rs_min_N_for_threads    = " << c.rs_min_N_for_threads << "\n"
+        << "theta_exact_switch_t    = " << c.theta_exact_switch_t << "\n"
+        << "rs_log_debug            = " << c.rs_log_debug << "\n"
+        << "rs_log_digits           = " << c.rs_log_digits << "\n"
         << "theta_stirling_terms    = " << c.theta_stirling_terms << "\n"
         << "valley_grow             = " << c.valley_grow << "\n"
         << "valley_shrink           = " << c.valley_shrink << "\n"

@@ -29,10 +29,10 @@ extern "C"
             double tol_abs, double tol_step,
             int max_iter, int use_threaded_z);
 
-        // Coarse-to-fine multi-pass wrapper (mirrors your Python idea)
-        bool refine_in_stages(
-            mpfr_t t_out, const mpfr_t t0,
-            int use_threaded_z);
+        // // Coarse-to-fine multi-pass wrapper (mirrors your Python idea)
+        // bool refine_in_stages(
+        //     mpfr_t t_out, const mpfr_t t0,
+        //     int use_threaded_z);
 
 #ifdef __cplusplus
 }

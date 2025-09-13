@@ -62,11 +62,14 @@ void best_update(mpfr_srcptr Z, mpfr_srcptr t)
 
     if (mpfr_cmp(absZ, s.best_absZ) < 0)
     {
-        LOG("A new t has been calculated");
+        LOGMP("New better has been calculated t=%.*Rf  |Z|=%.*Rg",
+               24, t,
+               20, Z);
+               
         mpfr_set(s.best_absZ, absZ, MPFR_RNDN);
         mpfr_set(s.best_t, t, MPFR_RNDN);
     }
-    
+
     mpfr_clear(absZ);
 }
 

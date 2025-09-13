@@ -11,9 +11,6 @@
 #include "logs.h"
 #include "utils.h"
 
-// local vars
-std::ostringstream oss;
-
 // -------------------------------
 // Spouge coeffs c_k  (real)
 // c0 = sqrt(2π)
@@ -269,8 +266,8 @@ static void Z_rs_main_parallel(
     long block_size = 8192)
 {
 
-    //LOG("\nParallel execution, large t Riemann Siegel, Gabcke correction...");
-    // N and p only to get N; a/p not needed here beyond that
+    // LOG("\nParallel execution, large t Riemann Siegel, Gabcke correction...");
+    //  N and p only to get N; a/p not needed here beyond that
     mpfr_t a, p;
     mpfr_inits2(P, a, p, (mpfr_ptr)0);
     long N = rs_N_from_t(t, P, a, p);
@@ -574,8 +571,6 @@ static void psi_p(mpfr_t out, const mpfr_t p, mpfr_prec_t P)
     mpfr_clears(two_pi, num_arg, den_arg, den, num, (mpfr_ptr)0);
 }
 
-
-
 // central derivatives of ψ at p, 9-point, step h; returns ψ'', ψ''', ψ''''''.
 static void psi_derivs_central(mpfr_t d2, mpfr_t d3, mpfr_t d6,
                                const mpfr_t p, mpfr_prec_t P,
@@ -829,8 +824,7 @@ static void Z_rs_with_gabcke(
     mpfr_prec_t P,
     bool useC1C2,
     DiffWeights *W_opt,
-    const Spouge &S,
-    bool parallel)
+    const Spouge &S)
 {
 
     mpfr_t theta;
@@ -841,14 +835,31 @@ static void Z_rs_with_gabcke(
     mpfr_t Zmain;
     mpfr_init2(Zmain, P);
 
-    // parallel optimization
-    if (parallel)
-        // threads=0 → uses omp_get_max_threads().
-        // Tune block_size (4k–32k). Larger blocks = fewer log(n0) calls, smaller overhead; smaller blocks = more parallelism.
-        Z_rs_main_parallel(Zmain, t, theta, P, /*threads*/ 0, /*block_size*/ 8192);
-    else
+    // if we are using parallel Newton, we won't overprocess
+    if (CFG().use_threaded_newton)
+    {
+        LOGMP("Disablig parallel RS-Gabcke to paralelize Newton...");
+        LOGMP("Processing Single Thread RS-Gabcke...");
         // single thread
         Z_rs_main(Zmain, t, theta, P);
+    }
+    else
+    {
+        // parallel optimization
+        if (CFG().use_threaded_z)
+        {
+            LOGMP("Processing parallelized RS-Gabcke...");
+            // threads=0 → uses omp_get_max_threads().
+            // Tune block_size (4k–32k). Larger blocks = fewer log(n0) calls, smaller overhead; smaller blocks = more parallelism.
+            Z_rs_main_parallel(Zmain, t, theta, P, /*threads*/ 0, /*block_size*/ 8192);
+        }
+        else
+        {
+            LOGMP("Processing Single Thread RS-Gabcke...");
+            // single thread
+            Z_rs_main(Zmain, t, theta, P);
+        }
+    }
 
     mpfr_t R1;
     mpfr_init2(R1, P);
@@ -867,7 +878,7 @@ static void Z_rs_with_gabcke(
 void compute_Z_rs_gabcke(mpfr_t Z, const mpfr_t t)
 {
 
-    mpfr_prec_t P = CFG().mpfr_prec; 
+    mpfr_prec_t P = CFG().mpfr_prec;
     std::vector<mpfr_srcptr> tvals;
     tvals.push_back(t);
 
@@ -882,8 +893,8 @@ void compute_Z_rs_gabcke(mpfr_t Z, const mpfr_t t)
 
     mpfr_set_default_prec(P);
 
-    //oss << "mpfr_prec = " << P << " bits (" << dec_digits_from_bits(P) << " d.p.)\n";
-    //LOGP(oss.str(), CFG().rs_log_digits);    
+    // oss << "mpfr_prec = " << P << " bits (" << dec_digits_from_bits(P) << " d.p.)\n";
+    // LOGP(oss.str(), CFG().rs_log_digits);
 
     // prepare Spouge coeffs
     Spouge S;
@@ -897,21 +908,24 @@ void compute_Z_rs_gabcke(mpfr_t Z, const mpfr_t t)
     {
         mpfr_t tval;
         mpfr_init2(tval, P);
-        //mpfr_set_str(tval, ts.c_str(), 10, MPFR_RNDN);
+        // mpfr_set_str(tval, ts.c_str(), 10, MPFR_RNDN);
         mpfr_set(tval, ts, MPFR_RNDN);
 
         mpfr_t Ztot, Zmain, R1;
         mpfr_inits2(P, Ztot, Zmain, R1, (mpfr_ptr)0);
 
         bool useC1C2 = true;
-        Z_rs_with_gabcke(Ztot, Zmain, R1, tval, P, useC1C2, &W, S, true);
+        Z_rs_with_gabcke(Ztot, Zmain, R1, tval, P, useC1C2, &W, S);
 
-        oss << "t = " << mp(tval, CFG().rs_log_digits, 'g') << " " << "Ztot = " << mp(Ztot, CFG().rs_log_digits, 'g') << "\n";   // or 'e' / 'f'
-        LOGP(oss.str(), CFG().rs_log_digits);
-        //std::cout << "a(spouge) = " << a << "\n";
-        //print_mpfr("Z_main", Zmain, 30);
-        //print_mpfr("R1", R1, 30);
-        //print_mpfr("Z_tot", Ztot, 30);
+        LOGMP("t = %.*Rf |Z| = %.*Rg",
+              24, tval,
+              20, Ztot);
+
+        // LOGP("t = " << mp(tval, CFG().rs_log_digits, 'g') << " " << "Ztot = " << mp(Ztot, CFG().rs_log_digits, 'g') << "\n", CFG().rs_log_digits);
+        //  std::cout << "a(spouge) = " << a << "\n";
+        //  print_mpfr("Z_main", Zmain, 30);
+        //  print_mpfr("R1", R1, 30);
+        //  print_mpfr("Z_tot", Ztot, 30);
 
         // last Z calculated from the array is returned, this loop while helps to test many t
         mpfr_set(Z, Ztot, MPFR_RNDN);

@@ -12,6 +12,7 @@ struct Config
     double newton_tol_step = 1e-14;
     int newton_max_iter = 5;
     bool use_threaded_z = true;
+    bool use_threaded_newton = false;
 
     double ball_mid_threshold = 1e-8;
 

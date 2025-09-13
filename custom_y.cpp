@@ -3,31 +3,9 @@
 #include <cmath>
 #include <iomanip>
 #include "settings.h"
+#include "logs.h"
 
-void compute_y_from_N(mpfr_t y, mpfr_t N)
-{
-
-    int prec = CFG().mpfr_prec;
-
-    mpfr_t cumulative, minus_one;
-    mpfr_init2(cumulative, prec);
-    mpfr_init2(minus_one, prec);
-
-    mpfr_set_si(minus_one, -1, MPFR_RNDN);
-
-    // sqrt(4N - 1) / 2
-    mpfr_mul_ui(cumulative, N, 4, MPFR_RNDN);
-    mpfr_add(cumulative, cumulative, minus_one, MPFR_RNDN);
-    mpfr_sqrt(cumulative, cumulative, MPFR_RNDN);
-    mpfr_div_ui(y, cumulative, 2, MPFR_RNDN);
-
-    // std::cout << "calculated y ";
-    // mpfr_printf("%.15Rf\n", y);
-
-    mpfr_clears(cumulative, minus_one, (mpfr_ptr)0);
-}
-
-void calculate_next_y_from_spacing(mpfr_t y, mpfr_t next)
+void calculate_next_y_from_spacing(mpfr_t next, mpfr_t y)
 {
 
     int prec = CFG().mpfr_prec;
@@ -58,7 +36,30 @@ void calculate_next_y_from_spacing(mpfr_t y, mpfr_t next)
     mpfr_clears(pi, two_pi, y_div_twopi, log_term, spacing, (mpfr_ptr)0);
 }
 
-void compute_N_from_y(mpfr_t y, mpfr_t N)
+void compute_y_from_N(mpfr_t y, mpfr_t N)
+{
+
+    int prec = CFG().mpfr_prec;
+
+    mpfr_t cumulative, minus_one;
+    mpfr_init2(cumulative, prec);
+    mpfr_init2(minus_one, prec);
+
+    mpfr_set_si(minus_one, -1, MPFR_RNDN);
+
+    // sqrt(4N - 1) / 2
+    mpfr_mul_ui(cumulative, N, 4, MPFR_RNDN);
+    mpfr_add(cumulative, cumulative, minus_one, MPFR_RNDN);
+    mpfr_sqrt(cumulative, cumulative, MPFR_RNDN);
+    mpfr_div_ui(y, cumulative, 2, MPFR_RNDN);
+
+    // std::cout << "calculated y ";
+    // mpfr_printf("%.15Rf\n", y);
+
+    mpfr_clears(cumulative, minus_one, (mpfr_ptr)0);
+}
+
+void compute_N_from_y(mpfr_t N, mpfr_t y)
 {
 
     int prec = CFG().mpfr_prec;
@@ -77,7 +78,7 @@ void compute_N_from_y(mpfr_t y, mpfr_t N)
     mpfr_add(cumulative, cumulative, one, MPFR_RNDN);
     mpfr_div(N, cumulative, four, MPFR_RNDN);
 
-    // mpfr_printf("%.15Rf\n", N);
+    LOGMP("N from y %.15Rf\n", N);
 
-    mpfr_clears(cumulative, one, y, (mpfr_ptr)0);
+    mpfr_clears(cumulative, one, four, (mpfr_ptr)0);
 }

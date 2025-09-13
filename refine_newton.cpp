@@ -21,49 +21,49 @@ static inline double stage_step_tol(const mpfr_t t, double tol_abs)
     return std::clamp(raw, CFG().h_min, 0.2 * s); // hard caps
 }
 
-bool refine_in_stages(mpfr_t t_out, const mpfr_t t0, int use_threaded_z)
-{
-    // target absolute |Z| per stage — tweak as you like
-    static const double ABS_TOLS[] = {
-        1e-2, 1e-3, 1e-4, 1e-6, 1e-8, 1e-10,
-        1e-12, 1e-16, 1e-20, 1e-28, 1e-40, 1e-56};
+// bool refine_in_stages(mpfr_t t_out, const mpfr_t t0, int use_threaded_z)
+// {
+//     // target absolute |Z| per stage — tweak as you like
+//     static const double ABS_TOLS[] = {
+//         1e-2, 1e-3, 1e-4, 1e-6, 1e-8, 1e-10,
+//         1e-12, 1e-16, 1e-20, 1e-28, 1e-40, 1e-56};
 
-    static const int N_STAGES = (int)(sizeof(ABS_TOLS) / sizeof(ABS_TOLS[0]));
+//     static const int N_STAGES = (int)(sizeof(ABS_TOLS) / sizeof(ABS_TOLS[0]));
 
-    // per-stage iteration budget — small but enough, because we re-seed each time
-    const int iters_per_stage = std::max(6, CFG().newton_max_iter);
+//     // per-stage iteration budget — small but enough, because we re-seed each time
+//     const int iters_per_stage = std::max(6, CFG().newton_max_iter);
 
-    mpfr_t t_cur, t_next;
-    mpfr_inits2(CFG().mpfr_prec, t_cur, t_next, (mpfr_ptr)0);
-    mpfr_set(t_cur, t0, MPFR_RNDN);
+//     mpfr_t t_cur, t_next;
+//     mpfr_inits2(CFG().mpfr_prec, t_cur, t_next, (mpfr_ptr)0);
+//     mpfr_set(t_cur, t0, MPFR_RNDN);
 
-    bool final_ok = false;
+//     bool final_ok = false;
 
-    for (int i = 0; i < N_STAGES; ++i)
-    {
-        const double tol_abs = ABS_TOLS[i];
-        const double tol_step = stage_step_tol(t_cur, tol_abs);
+//     for (int i = 0; i < N_STAGES; ++i)
+//     {
+//         const double tol_abs = ABS_TOLS[i];
+//         const double tol_step = stage_step_tol(t_cur, tol_abs);
 
-        // run one Newton pass from current estimate
-        bool ok = newton_refine_root(
-            t_next,
-            t_cur,
-            tol_abs,
-            tol_step,
-            iters_per_stage,
-            use_threaded_z);
+//         // run one Newton pass from current estimate
+//         bool ok = newton_refine_root(
+//             t_next,
+//             t_cur,
+//             tol_abs,
+//             tol_step,
+//             iters_per_stage,
+//             use_threaded_z);
 
-        // accept whatever improvement we got as the seed for the next stage
-        mpfr_set(t_cur, t_next, MPFR_RNDN);
+//         // accept whatever improvement we got as the seed for the next stage
+//         mpfr_set(t_cur, t_next, MPFR_RNDN);
 
-        // remember whether we hit this stage’s target
-        final_ok = ok; // will be overwritten each stage; last stage decides
-    }
+//         // remember whether we hit this stage’s target
+//         final_ok = ok; // will be overwritten each stage; last stage decides
+//     }
 
-    mpfr_set(t_out, t_cur, MPFR_RNDN);
-    mpfr_clears(t_cur, t_next, (mpfr_ptr)0);
-    return final_ok;
-}
+//     mpfr_set(t_out, t_cur, MPFR_RNDN);
+//     mpfr_clears(t_cur, t_next, (mpfr_ptr)0);
+//     return final_ok;
+// }
 
 // // Evaluate Z(t) using small/threaded paths as requested
 // static inline void eval_Z(mpfr_t Z, mpfr_t t, int use_threaded_z)

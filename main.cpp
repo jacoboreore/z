@@ -8,27 +8,25 @@
 
 #include "cli.h"
 #include "settings.h"
-#include "z_calculator.h"  // compute_Z(...), rs_N_for_log(...), est_spacing(...)
+#include "z_calculator.h" // compute_Z(...), rs_N_for_log(...), est_spacing(...)
 #include "z_calculator_rs_gabcke.h"
-#include "z_ball.h"        // ZBallV, zballv_init/clear, compute_Z_ball_verbose, zballv_contains_zero
-#include "refine_newton.h" // newton_refine_root(...)
-//#include "confirm_zero.h"  // confirm_zero_like(...)
+#include "z_ball.h" // ZBallV, zballv_init/clear, compute_Z_ball_verbose, zballv_contains_zero
+#include "refine_newton.h"
+#include "refine_newton thread.h" // newton_refine_root(...)
+// #include "confirm_zero.h"  // confirm_zero_like(...)
 #include "z_walk.h"
 #include "logs.h"
 #include "utils.h"
 
-void get_best_t_so_far(){
-    
-    // Print the Global best t across all points
+void get_best_t_so_far()
+{
     mpfr_t best_t, best_absZ;
     mpfr_inits2(CFG().mpfr_prec, best_t, best_absZ, (mpfr_ptr)0);
     best_get(best_t, best_absZ);
 
-    std::ostringstream oss;
-    oss << "BEST |Z| so far, |Z|=" << mp(best_absZ, CFG().rs_log_digits)
-        << " at t=" << mp(best_t, CFG().rs_log_digits);
-
-    LOGPF(oss.str(), CFG().rs_log_digits);
+    LOGMP("Best calculations t = %.*Rf |Z| = %.*Rg",
+          CFG().rs_log_digits, best_t,
+          CFG().rs_log_digits, best_absZ);
 
     mpfr_clears(best_t, best_absZ, (mpfr_ptr)0);
 }
@@ -38,7 +36,7 @@ int main(int argc, char **argv)
 
     // print API version, MPFR, MPC, GMP
     // Current version as for 07/01/2005
-    
+
     // MPFR runtime : 4.2.2
     // MPFR headers : 4.2.2
     // GMP  runtime : 6.3.0
@@ -53,7 +51,7 @@ int main(int argc, char **argv)
     if (!parse_cli(argc, argv, opt))
         return 80;
 
-    // load configuration, optional: file path relative to the executable conf/z.conf.  
+    // load configuration, optional: file path relative to the executable conf/z.conf.
     // Defaults are in settings.h
     config_init("conf/z.conf");
     std::cout << "\nCONFIG\n";
@@ -75,6 +73,8 @@ int main(int argc, char **argv)
         return 81;
     }
 
+    ////////////////////////////////////////////////////////////
+
     // Calculations based on inputs
     if (opt.mode == Options::Mode::Z)
     {
@@ -85,17 +85,10 @@ int main(int argc, char **argv)
     }
     else if (opt.mode == Options::Mode::ValleyScanner)
     {
-        mpfr_t step;
-        mpfr_init2(step, CFG().mpfr_prec);
-        if (mpfr_set_str(step, opt.step_str.c_str(), 10, MPFR_RNDN) != 0)
-        {
-            std::cerr << "[fatal] mpfr_set_str failed for step\n";
-            mpfr_clears(t, step, (mpfr_ptr)0);
-            return 65;
-        }
-
         y_confirmed(t);
-        mpfr_clears(step, (mpfr_ptr)0);
+        
+        // sanity print for the best y calculated
+        get_best_t_so_far();        
     }
     else if (opt.mode == Options::Mode::Z_ball)
     {
@@ -108,30 +101,48 @@ int main(int argc, char **argv)
     else if (opt.mode == Options::Mode::Pre_filter)
     {
         bool result = z_prefilter(t, CFG().prefilter_alpha, CFG().prefilter_tau);
-        mpfr_printf("Keep t as close to a zero (int 1 = true): %d\n", result); 
+        mpfr_printf("Keep t as close to a zero (int 1 = true): %d\n", result);
     }
-    else  if (opt.mode == Options::Mode::Refine)
+    else if (opt.mode == Options::Mode::Refine)
     {
         mpfr_t t_star;
         mpfr_init2(t_star, CFG().mpfr_prec);
 
-        bool ok = newton_refine_root(
-            t_star, 
-            t,
-            CFG().newton_tol_abs,
-            CFG().newton_tol_step,
-            CFG().newton_max_iter,
-            CFG().use_threaded_z ? 1 : 0);
+        bool ok = false;
 
-        mpfr_printf("refine[%s]: t_in=%.15Rf  t_out=%.30Rf\n", ok ? "ok" : "stopped", t, t_star);
+        if (CFG().use_threaded_newton)
+        {
+            LOGMP("Using parallelized Newton...");
+            ok = newton_refine_root_thread(
+                t_star,
+                t,
+                CFG().newton_tol_abs,
+                CFG().newton_tol_step,
+                CFG().newton_max_iter,
+                CFG().use_threaded_z ? 1 : 0);
+        }
+        else
+        {
+            LOGMP("Using Single thread Newton...");
+            ok = newton_refine_root(
+                t_star,
+                t,
+                CFG().newton_tol_abs,
+                CFG().newton_tol_step,
+                CFG().newton_max_iter,
+                CFG().use_threaded_z ? 1 : 0);
+        }
 
-        ok = refine_in_stages(t_star, t, CFG().use_threaded_z);
-        mpfr_printf("refine stages [%s]: t_in=%.15Rf  t_out=%.30Rf\n", ok ? "ok" : "stopped", t, t_star);
+        //mpfr_printf("refine[%s]: t_in=%.15Rf  t_out=%.30Rf\n", ok ? "ok" : "stopped", t, t_star);
+
+        // ok = refine_in_stages(t_star, t, CFG().use_threaded_z);
+        // mpfr_printf("refine stages [%s]: t_in=%.15Rf  t_out=%.30Rf\n", ok ? "ok" : "stopped", t, t_star);
 
         get_best_t_so_far();
 
         mpfr_clear(t_star);
-    } else
+    }
+    else
     {
         printf("NOTHING TO DO");
     }
@@ -142,5 +153,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-
-

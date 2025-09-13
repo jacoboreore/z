@@ -1,8 +1,8 @@
 # Makefile for Z project
 
 CXX      = g++
-CXXFLAGS = -O2 -std=c++20 -MMD -MP
-LDFLAGS  = -pthread
+CXXFLAGS = -O2 -std=c++20 -MMD -MP -fopenmp
+LDFLAGS  = -pthread -fopenmp
 
 # add pure headers here 
 LIBS     = -lmpc -lmpfr -lgmp -fopenmp
@@ -22,6 +22,7 @@ SOURCES = \
   z_calculator.cpp            \
   z_ball.cpp                  \
   refine_newton.cpp           \
+  refine_newton_thread.cpp    \
   settings.cpp                \
   cli.cpp                     \
   utils.cpp                   \

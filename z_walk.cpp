@@ -7,6 +7,7 @@
 #include "z_calculator.h"
 #include "custom_y.h"
 #include "settings.h"
+#include "logs.h"
 
 std::mutex print_mutex;
 
@@ -53,8 +54,8 @@ static inline void smart_step(const mpfr_t z_prev,
 // Walk N downward in big leaps to see if Z keeps improving.
 // All MPFR state is local to this thread. No set_default_prec here.
 static void backward_search_uj(
-    uint64_t N0, mpfr_prec_t P, 
-    uint64_t steps = 1000000ULL, 
+    uint64_t N0, mpfr_prec_t P,
+    uint64_t steps = 1000000ULL,
     uint64_t stride = 100000ULL)
 {
     mpfr_t N, y, z, best_z;
@@ -289,34 +290,31 @@ static void backward_search_uj(
 //     return 0;
 // }
 
-int y_confirmed(mpfr_t start_y)
+void y_confirmed(mpfr_t start_y)
 {
     mpfr_set_default_prec(CFG().mpfr_prec);
 
     const int max_iters = 1000000;
     int iter = 0;
 
-    mpfr_t N, z_prev, z_cur, y_next, step, yN, y_best;
-    mpfr_inits2(CFG().mpfr_prec, N, z_prev, z_cur, y_next, step, yN, y_best, (mpfr_ptr)0);
+    mpfr_t N, z_prev, z_cur, y_next, step, yN, y_best, Np, Nm, yp, ym, zp, zm;
+    mpfr_inits2(CFG().mpfr_prec, N, z_prev, z_cur, y_next, step, yN, y_best, Np, Nm, yp, ym, zp, zm, (mpfr_ptr)0);
 
     // next y by spacing
-    calculate_next_y_from_spacing(start_y, y_next);
-    mpfr_printf("Process params\n---> start_y %.12Rf\nNext y %.12Rf\n", start_y, y_next);
+    calculate_next_y_from_spacing(y_next, start_y);
+    LOGMP("Process params\n---> start_y %.12Rf\nNext y %.12Rf\n", start_y, y_next);
 
     // |Z| at next y
     compute_Z(z_prev, y_next);
     mpfr_abs(z_prev, z_prev, MPFR_RNDN);
-    mpfr_printf("|Z| at next y: %.12Rf\n", z_prev);
+    LOGMP("|Z| at next y: %.12Rf\n", z_prev);
 
     // N = floor(N(y_next))
-    compute_N_from_y(y_next, N);
+    compute_N_from_y(N, y_next);
     mpfr_floor(N, N);
-    mpfr_printf("N from next y: %.0Rf\n", N);
+    LOGMP("N from next y: %.0Rf\n", N);
 
     // Try both directions (N±1) to select initial descent
-    mpfr_t Np, Nm, yp, ym, zp, zm;
-    mpfr_inits2(CFG().mpfr_prec, Np, Nm, yp, ym, zp, zm, (mpfr_ptr)0);
-
     mpfr_add_ui(Np, N, 1, MPFR_RNDN);
     compute_y_from_N(yp, Np);
     compute_Z(zp, yp);
@@ -338,7 +336,7 @@ int y_confirmed(mpfr_t start_y)
     // initial step: ±1 in the chosen direction
     mpfr_set_si(step, go_down ? -1 : 1, MPFR_RNDN);
 
-    mpfr_printf("Initial direction: %s (|Z|=%.12Rf)\n", go_down ? "DOWN" : "UP", z_cur);
+    LOGMP("\n\n****** Initial direction: %s ******\n", go_down ? "DOWN" : "UP");
 
     while (iter++ < max_iters)
     {
@@ -352,7 +350,10 @@ int y_confirmed(mpfr_t start_y)
 
         // ---- per-step log (Z, N, step) ----
         if (CFG().rs_log_debug)
-            mpfr_printf("scan: Z=%.12Rf N=%.0Rf step=%.0Rf t=%.20Rf\n", z_prev, N, step, yN);
+        {
+            //if ((iter % 50) == 0)
+            LOGMP("scan: Z=%.12Rf N=%.0Rf step=%.0Rf t=%.20Rf\n", z_prev, N, step, yN);
+        }
         // -----------------------------------
 
         if (mpfr_cmp(z_prev, z_cur) < 0)
@@ -363,14 +364,13 @@ int y_confirmed(mpfr_t start_y)
 
             // shrink step magnitude for honing
             smart_step(
-                z_prev, 
-                z_cur, 
-                step, 
-                CFG().valley_grow, 
+                z_prev,
+                z_cur,
+                step,
+                CFG().valley_grow,
                 CFG().valley_shrink,
-                CFG().valley_step_min,    
-                CFG().valley_step_max
-            );
+                CFG().valley_step_min,
+                CFG().valley_step_max);
 
             // (optional) occasional refinement log remains if you like:
             // if ((iter % 50) == 0)
@@ -384,17 +384,44 @@ int y_confirmed(mpfr_t start_y)
             mpfr_neg(step, step, MPFR_RNDN); // flip direction once
 
             // One “bounce” is your valley bottom
-            mpfr_printf("\n\n*** valley bottom ~ y=%.25Rf, |Z|=%.25Rf, N≈%.0Rf\n", y_best, z_cur, N);
-            mpfr_printf("refine: N=%.0Rf, |Z|=%.12Rf, step=%.0Rf\n", N, z_cur, step);
+            mpfr_printf("\n\n*** valley bottom ~ y=%.25Rf, |Z|=%.25Rf, N=%.0Rf\n", y_best, z_cur, N);
+            // mpfr_printf("refine: N=%.0Rf, |Z|=%.12Rf, step=%.0Rf\n", N, z_cur, step);
 
             // optional: launch backward probe (non-blocking)
-            uint64_t N0 = (uint64_t)std::llround(mpfr_get_d(N, MPFR_RNDN));
-            std::thread(backward_search_uj, N0, CFG().mpfr_prec, 200000ULL, 20000ULL).detach();
+            // uint64_t N0 = (uint64_t)std::llround(mpfr_get_d(N, MPFR_RNDN));
+            // std::thread(backward_search_uj, N0, CFG().mpfr_prec, 200000ULL, 20000ULL).detach();
 
             break;
         }
     }
 
     mpfr_clears(N, z_prev, z_cur, y_next, step, yN, y_best, Np, Nm, yp, ym, zp, zm, (mpfr_ptr)0);
-    return 0;
+
+// Use this code for segmentation faults, to debug memory claiming
+// #define FREE_MPFR(var)                                           \
+//     do                                                           \
+//     {                                                            \
+//         fprintf(stderr, "[free] about to clear %s ...\n", #var); \
+//         fflush(stderr);                                          \
+//         mpfr_clear(var);                                         \
+//         fprintf(stderr, "[free] cleared %s\n", #var);            \
+//         fflush(stderr);                                          \
+//     } while (0)
+
+//     // Clear in a deterministic order (reverse order often helps spot issues)
+//     FREE_MPFR(zm);
+//     FREE_MPFR(zp);
+//     FREE_MPFR(ym);
+//     FREE_MPFR(yp);
+//     FREE_MPFR(Nm);
+//     FREE_MPFR(Np);
+//     FREE_MPFR(y_best);
+//     FREE_MPFR(yN);
+//     FREE_MPFR(step);
+//     FREE_MPFR(y_next);
+//     FREE_MPFR(z_cur);
+//     FREE_MPFR(z_prev);
+//     FREE_MPFR(N);
+
+// #undef FREE_MPFR
 }
