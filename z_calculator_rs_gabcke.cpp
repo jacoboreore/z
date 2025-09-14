@@ -848,14 +848,14 @@ static void Z_rs_with_gabcke(
         // parallel optimization
         if (CFG().use_threaded_z)
         {
-            LOGMP("Processing parallelized RS-Gabcke...");
+            LOGMP_DEBUG("Processing parallelized RS-Gabcke...");
             // threads=0 → uses omp_get_max_threads().
             // Tune block_size (4k–32k). Larger blocks = fewer log(n0) calls, smaller overhead; smaller blocks = more parallelism.
             Z_rs_main_parallel(Zmain, t, theta, P, /*threads*/ 0, /*block_size*/ 8192);
         }
         else
         {
-            LOGMP("Processing Single Thread RS-Gabcke...");
+            LOGMP_DEBUG("Processing Single Thread RS-Gabcke...");
             // single thread
             Z_rs_main(Zmain, t, theta, P);
         }
@@ -917,9 +917,9 @@ void compute_Z_rs_gabcke(mpfr_t Z, const mpfr_t t)
         bool useC1C2 = true;
         Z_rs_with_gabcke(Ztot, Zmain, R1, tval, P, useC1C2, &W, S);
 
-        LOGMP("t = %.*Rf |Z| = %.*Rg",
-              24, tval,
-              20, Ztot);
+        // LOGMP("t = %.*Rf |Z| = %.*Rg",
+        //       24, tval,
+        //       20, Ztot);
 
         // LOGP("t = " << mp(tval, CFG().rs_log_digits, 'g') << " " << "Ztot = " << mp(Ztot, CFG().rs_log_digits, 'g') << "\n", CFG().rs_log_digits);
         //  std::cout << "a(spouge) = " << a << "\n";

@@ -50,3 +50,5 @@ inline std::ostream &operator<<(std::ostream &os, const MpfrPrintable &m)
 {
     return os << mpfr_to_string(m.x, m.digits, m.mode);
 }
+
+void get_best_t_so_far();

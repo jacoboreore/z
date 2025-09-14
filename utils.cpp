@@ -1,6 +1,7 @@
 // utils.cpp
 #include "utils.h"
 #include "logs.h"
+#include "settings.h"
 #include <cassert>
 
 static std::mutex &best_mutex()
@@ -58,14 +59,14 @@ void best_update(mpfr_srcptr Z, mpfr_srcptr t)
 
     mpfr_t absZ;
     mpfr_init2(absZ, s.P);
-    mpfr_abs(absZ, Z, MPFR_RNDN);
 
+    mpfr_abs(absZ, Z, MPFR_RNDN);
     if (mpfr_cmp(absZ, s.best_absZ) < 0)
     {
-        LOGMP("New better has been calculated t=%.*Rf  |Z|=%.*Rg",
-               24, t,
-               20, Z);
-               
+        LOGMP("(*) New better has been calculated t = %.*Rf  |Z| = %.*Rg",
+              24, t,
+              20, Z);
+
         mpfr_set(s.best_absZ, absZ, MPFR_RNDN);
         mpfr_set(s.best_t, t, MPFR_RNDN);
     }
@@ -82,4 +83,19 @@ void best_get(mpfr_t out_t, mpfr_t out_absZ)
     // Caller must have set appropriate precision on out_t/out_absZ
     mpfr_set(out_t, s.best_t, MPFR_RNDN);
     mpfr_set(out_absZ, s.best_absZ, MPFR_RNDN);
+}
+
+void get_best_t_so_far()
+{
+    mpfr_t best_t, best_absZ;
+    mpfr_inits2(CFG().mpfr_prec, best_t, best_absZ, (mpfr_ptr)0);
+    best_get(best_t, best_absZ);
+
+    LOGMP("Best calculations t = %.*Rf |Z| = %.*Rg",
+          CFG().rs_log_digits,
+          best_t,
+          CFG().rs_log_digits,
+          best_absZ);
+
+    mpfr_clears(best_t, best_absZ, (mpfr_ptr)0);
 }

@@ -9,7 +9,8 @@
 #include <mpfr.h>
 
 // Global control flag
-inline bool g_enable_log = true;
+inline bool g_main_log = true; // main logger
+inline bool g_enable_log_debug = true;
 
 inline std::string current_timestamp()
 {
@@ -32,10 +33,21 @@ inline void log_msg_internal(const char *file,
                              int line,
                              const std::string &msg,
                              int /*precision*/ = 15,
-                             bool force_log = false)
+                             bool force_log = false,
+                             int type = 1)// 1 normal, 2 debug
 {
-    if (!g_enable_log && !force_log)
-        return;
+    if (!force_log)
+    {
+        if (type == 1 && !g_main_log)
+        {
+            return;
+        }
+        
+        if (type == 2 && !g_enable_log_debug)
+        {
+            return;
+        }
+    }
 
     std::string module(file);
     if (auto pos = module.find_last_of("/\\"); pos != std::string::npos)
@@ -56,30 +68,44 @@ inline void log_msg_internal(const char *file,
      LOGMP("t = %.*Rf |Z| = %.*Rg", 24, tval, 20, Ztot);
    ----------------------------------------------------- */
 
-#define LOGMP(fmt, ...)                                      \
-    do                                                       \
-    {                                                        \
-        char *_buf = nullptr;                                \
-        int _n = mpfr_asprintf(&_buf, (fmt), ##__VA_ARGS__); \
-        std::string _s;                                      \
-        if (_n >= 0 && _buf)                                 \
-        {                                                    \
-            _s.assign(_buf, static_cast<size_t>(_n));        \
-            mpfr_free_str(_buf);                             \
-        }                                                    \
-        log_msg_internal(__FILE__, __LINE__, _s, 15, false); \
+#define LOGMP(fmt, ...)                                         \
+    do                                                          \
+    {                                                           \
+        char *_buf = nullptr;                                   \
+        int _n = mpfr_asprintf(&_buf, (fmt), ##__VA_ARGS__);    \
+        std::string _s;                                         \
+        if (_n >= 0 && _buf)                                    \
+        {                                                       \
+            _s.assign(_buf, static_cast<size_t>(_n));           \
+            mpfr_free_str(_buf);                                \
+        }                                                       \
+        log_msg_internal(__FILE__, __LINE__, _s, 15, false, 1); \
     } while (0)
 
-#define LOGMPF(fmt, ...)                                     \
-    do                                                       \
-    {                                                        \
-        char *_buf = nullptr;                                \
-        int _n = mpfr_asprintf(&_buf, (fmt), ##__VA_ARGS__); \
-        std::string _s;                                      \
-        if (_n >= 0 && _buf)                                 \
-        {                                                    \
-            _s.assign(_buf, static_cast<size_t>(_n));        \
-            mpfr_free_str(_buf);                             \
-        }                                                    \
-        log_msg_internal(__FILE__, __LINE__, _s, 15, true);  \
+#define LOGMPF(fmt, ...)                                       \
+    do                                                         \
+    {                                                          \
+        char *_buf = nullptr;                                  \
+        int _n = mpfr_asprintf(&_buf, (fmt), ##__VA_ARGS__);   \
+        std::string _s;                                        \
+        if (_n >= 0 && _buf)                                   \
+        {                                                      \
+            _s.assign(_buf, static_cast<size_t>(_n));          \
+            mpfr_free_str(_buf);                               \
+        }                                                      \
+        log_msg_internal(__FILE__, __LINE__, _s, 15, true, 1); \
+    } while (0)
+
+#define LOGMP_DEBUG(fmt, ...)                                   \
+    do                                                          \
+    {                                                           \
+        char *_buf = nullptr;                                   \
+        int _n = mpfr_asprintf(&_buf, (fmt), ##__VA_ARGS__);    \
+        std::string _s;                                         \
+        if (_n >= 0 && _buf)                                    \
+        {                                                       \
+            _s.assign(_buf, static_cast<size_t>(_n));           \
+            mpfr_free_str(_buf);                                \
+        }                                                       \
+        log_msg_internal(__FILE__, __LINE__, _s, 15, false, 2); \
     } while (0)

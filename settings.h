@@ -30,14 +30,16 @@ struct Config
 
     // logging
     bool rs_log_debug = true;
+    bool rs_main_log = true;
     int rs_log_digits = 24;
 
     int theta_stirling_terms = 8; // integer term count
 
-    double valley_grow;            // factor to multply if the walking is too slow
-    double valley_shrink = 0.5;    // factor to multply if the walking is too big
-    double valley_step_min = 1.08; // we start growing by this value, then we multiply x grow to walk faster
-    double valley_step_max = 1e12; // putting limits to the growth
+    double valley_grow = 2e-8;            // factor to add to N to walk the to the valley
+    double valley_aggressive_factor = 10; // factor to multply if the step to walk fastee
+    double valley_tolerance_to_step = 1;
+    double valley_max_step = 1e10;
+    double valley_max_Zs_relation = 2;
 };
 
 // Initialize once (optional; CFG() will lazy‑init if you don’t call this)

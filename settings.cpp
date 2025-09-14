@@ -95,6 +95,9 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
 
     else if (ieq(k, "rs_log_debug"))
         c.rs_log_debug = to_bool(v);
+    else if (ieq(k, "rs_main_log"))
+        c.rs_main_log = to_bool(v);
+
     else if (ieq(k, "rs_log_digits"))
         c.rs_log_digits = std::stod(v);
 
@@ -107,12 +110,14 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
 
     else if (ieq(k, "valley_grow"))
         c.valley_grow = std::stod(v);
-    else if (ieq(k, "valley_shrink"))
-        c.valley_shrink = std::stod(v);
-    else if (ieq(k, "valley_step_min"))
-        c.valley_step_min = std::stod(v);
-    else if (ieq(k, "valley_step_max"))
-        c.valley_step_max = std::stod(v);
+    else if (ieq(k, "valley_aggressive_factor"))
+        c.valley_aggressive_factor = std::stod(v);
+    else if (ieq(k, "valley_tolerance_to_step"))
+        c.valley_aggressive_factor = std::stod(v);
+    else if (ieq(k, "valley_max_step"))
+        c.valley_aggressive_factor = std::stod(v);
+    else if (ieq(k, "valley_max_Zs_relation"))
+        c.valley_aggressive_factor = std::stod(v);
 }
 
 static void load_file(Config &cfg, const std::string &path)
@@ -189,15 +194,19 @@ void print_config(const Config &c)
     std::cout.setf(std::ios::boolalpha);
     std::cout
         << "mpfr_prec               = " << c.mpfr_prec << "\n"
+        << "\n"
         << "prefilter_alpha         = " << c.prefilter_alpha << "\n"
         << "prefilter_tau           = " << c.prefilter_tau << "\n"
         << "prefilter_tau_boost     = " << c.prefilter_tau_boost << "\n"
+        << "\n"
         << "newton_tol_abs          = " << c.newton_tol_abs << "\n"
         << "newton_tol_step         = " << c.newton_tol_step << "\n"
         << "newton_max_iter         = " << c.newton_max_iter << "\n"
+        << "\n"
         << "use_threaded_z          = " << c.use_threaded_z << "\n"
         << "use_threaded_newton     = " << c.use_threaded_newton << "\n"
         << "ball_mid_threshold      = " << c.ball_mid_threshold << "\n"
+        << "\n"
         << "h_min                   = " << c.h_min << "\n"
         << "h_frac_spacing          = " << c.h_frac_spacing << "\n"
         << "step_frac_spacing       = " << c.step_frac_spacing << "\n"
@@ -207,13 +216,18 @@ void print_config(const Config &c)
         << "max_threads             = " << c.max_threads << "\n"
         << "rs_min_N_for_threads    = " << c.rs_min_N_for_threads << "\n"
         << "theta_exact_switch_t    = " << c.theta_exact_switch_t << "\n"
+        << "\n"
         << "rs_log_debug            = " << c.rs_log_debug << "\n"
+        << "rs_main_log            = " << c.rs_main_log << "\n"
         << "rs_log_digits           = " << c.rs_log_digits << "\n"
+        << "\n"
         << "theta_stirling_terms    = " << c.theta_stirling_terms << "\n"
+        << "\n"
         << "valley_grow             = " << c.valley_grow << "\n"
-        << "valley_shrink           = " << c.valley_shrink << "\n"
-        << "valley_step_min         = " << c.valley_step_min << "\n"
-        << "valley_step_max         = " << c.valley_step_max << "\n"
+        << "valley_aggressive_factor           = " << c.valley_aggressive_factor << "\n"
+        << "valley_max_step             = " << c.valley_max_step << "\n"
+        << "valley_aggressive_factor           = " << c.valley_aggressive_factor << "\n"
+        << "valley_max_Zs_relation             = " << c.valley_max_Zs_relation << "\n"
 
         << "------------------------------------------------------------------\n";
 }

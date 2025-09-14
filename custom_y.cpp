@@ -61,7 +61,6 @@ void compute_y_from_N(mpfr_t y, mpfr_t N)
 
 void compute_N_from_y(mpfr_t N, mpfr_t y)
 {
-
     int prec = CFG().mpfr_prec;
 
     mpfr_t cumulative, one, four;
@@ -69,16 +68,14 @@ void compute_N_from_y(mpfr_t N, mpfr_t y)
     mpfr_init2(one, prec);
     mpfr_init2(four, prec);
 
-    mpfr_set_si(one, 1, MPFR_RNDN);
-    mpfr_set_si(four, 4, MPFR_RNDN);
+    mpfr_set_d(one, (double)1, MPFR_RNDN);
+    mpfr_set_d(four, (double)4, MPFR_RNDN);
 
     // (4 * y **2 + 1) / 4
     mpfr_mul(cumulative, y, y, MPFR_RNDN);
     mpfr_mul(cumulative, four, cumulative, MPFR_RNDN);
     mpfr_add(cumulative, cumulative, one, MPFR_RNDN);
     mpfr_div(N, cumulative, four, MPFR_RNDN);
-
-    LOGMP("N from y %.15Rf\n", N);
 
     mpfr_clears(cumulative, one, four, (mpfr_ptr)0);
 }

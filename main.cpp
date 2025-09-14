@@ -18,19 +18,6 @@
 #include "logs.h"
 #include "utils.h"
 
-void get_best_t_so_far()
-{
-    mpfr_t best_t, best_absZ;
-    mpfr_inits2(CFG().mpfr_prec, best_t, best_absZ, (mpfr_ptr)0);
-    best_get(best_t, best_absZ);
-
-    LOGMP("Best calculations t = %.*Rf |Z| = %.*Rg",
-          CFG().rs_log_digits, best_t,
-          CFG().rs_log_digits, best_absZ);
-
-    mpfr_clears(best_t, best_absZ, (mpfr_ptr)0);
-}
-
 int main(int argc, char **argv)
 {
 
@@ -58,7 +45,8 @@ int main(int argc, char **argv)
     print_config(CFG());
 
     // global availability for logs
-    g_enable_log = CFG().rs_log_debug;
+    g_main_log = CFG().rs_main_log;
+    g_enable_log_debug = CFG().rs_log_debug;
 
     // Initializing GLOBAL  best_y
     best_init(CFG().mpfr_prec);
