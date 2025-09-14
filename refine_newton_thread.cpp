@@ -1,169 +1,468 @@
 #include <cmath>
 #include <algorithm>
 #include <sstream>
+#include <cstring>
+#include <unordered_map>
 #include "refine_newton.h"
-#include "confirm_zero.h" // est_spacing, use_threaded_for_t
-#include "z_calculator_thread.h" // compute_Z_threaded(... non-const t)
+#include "confirm_zero.h"        // est_spacing, use_threaded_for_t
+#include "z_calculator_thread.h" // compute_Z_threaded(mpfr_t Z, mpfr_t t)
 #include "z_calculator.h"
 #include "settings.h"
 #include "logs.h"
 #include "utils.h"
 #ifdef _OPENMP
-    #include <omp.h>
-    static inline void omp_diag(const char* tag) {
-        LOGMPF("[omp] %s: ********* version=%d in_parallel=%d max_threads=%d num_procs=%d *********\n",
-            tag, 
-            _OPENMP, 
-            omp_in_parallel(), 
-            omp_get_max_threads(), 
-            omp_get_num_procs());
-    }
-    #else
-    static inline void omp_diag(const char* tag) {
-        LOGMPF("[omp] %s: OpenMP DISABLED at compile time", tag);
-    }
+#include <omp.h>
+static inline void omp_diag(const char *tag)
+{
+    LOGMPF("[omp] %s: ********* version=%d in_parallel=%d max_threads=%d num_procs=%d *********\n",
+           tag,
+           _OPENMP,
+           omp_in_parallel(),
+           omp_get_max_threads(),
+           omp_get_num_procs());
+}
+#else
+static inline void omp_diag(const char *tag)
+{
+    LOGMPF("[omp] %s: OpenMP DISABLED at compile time", tag);
+}
 #endif
+
+// Stable key for mpfr_t using full-precision hex mantissa+exponent.
+static inline std::string mpfr_key_hex(const mpfr_t x)
+{
+    mpfr_exp_t exp;
+    char *s = mpfr_get_str(nullptr, &exp, 16, 0, x, MPFR_RNDN); // full precision
+    std::string key;
+    key.reserve((s ? std::strlen(s) : 0) + 24);
+    if (s)
+    {
+        key.append(s);
+        mpfr_free_str(s);
+    }
+    key.push_back('|');
+    key.append(std::to_string((long long)exp));
+    return key;
+}
+
+// Choose threaded or single Z safely (avoid nested OMP) and satisfy non-const signature.
+static inline void compute_Z_dispatch(mpfr_t Z, const mpfr_t t, int use_threaded_z)
+{
+    // Make a non-const local copy to match compute_Z / compute_Z_threaded signatures.
+    mpfr_t t_nc;
+    mpfr_init2(t_nc, mpfr_get_prec(t));
+    mpfr_set(t_nc, t, MPFR_RNDN);
+
+    compute_Z(Z, t_nc);
+
+    mpfr_clear(t_nc);
+}
+
+// Simple MPFR cache (stores raw __mpfr_struct and uses &slot with MPFR APIs)
+struct ZCache
+{
+    std::unordered_map<std::string, __mpfr_struct> cache;
+    mpfr_prec_t P;
+
+    explicit ZCache(mpfr_prec_t prec) : P(prec) {}
+
+    bool get(const mpfr_t t, mpfr_t out)
+    {
+        const std::string key = mpfr_key_hex(t);
+        bool hit = false;
+#ifdef _OPENMP
+#pragma omp critical(ZCACHE)
+        {
+            auto it = cache.find(key);
+            if (it != cache.end())
+            {
+                mpfr_set(out, &it->second, MPFR_RNDN);
+                hit = true;
+            }
+        }
+#else
+        auto it = cache.find(key);
+        if (it != cache.end())
+        {
+            mpfr_set(out, &it->second, MPFR_RNDN);
+            hit = true;
+        }
+#endif
+        return hit;
+    }
+
+    void put(const mpfr_t t, const mpfr_t Z)
+    {
+        const std::string key = mpfr_key_hex(t);
+#ifdef _OPENMP
+#pragma omp critical(ZCACHE)
+        {
+            auto res = cache.emplace(key, __mpfr_struct{});
+            if (res.second) // inserted
+                mpfr_init2(&res.first->second, P);
+            mpfr_set(&res.first->second, Z, MPFR_RNDN);
+        }
+#else
+        auto res = cache.emplace(key, __mpfr_struct{});
+        if (res.second) // inserted
+            mpfr_init2(&res.first->second, P);
+        mpfr_set(&res.first->second, Z, MPFR_RNDN);
+#endif
+    }
+
+    ~ZCache()
+    {
+        for (auto &pair : cache)
+            mpfr_clear(&pair.second);
+    }
+};
+
+// --- helpers ---
+static inline int mpfr_sign(const mpfr_t x) { return mpfr_sgn(x); }
+static inline bool opposite_sign(const mpfr_t a, const mpfr_t b)
+{
+    int sa = mpfr_sign(a), sb = mpfr_sign(b);
+    return sa && sb && (sa != sb);
+}
+
+// Pegasus/Illinois hybrid on an existing bracket [a,b] with fa*fb<0.
+// Stops when |fz|<=tol_abs or |b-a|<=tol_step or max_it.
+// Returns true and sets root to last z; else false with best-so-far z.
+static bool pegasus_refine_bracket(
+    mpfr_t root,
+    mpfr_t a, mpfr_t b, mpfr_t fa, mpfr_t fb,
+    double tol_abs, double tol_step,
+    int max_it, int use_threaded_z, ZCache &cache)
+{
+    const mpfr_prec_t P = CFG().mpfr_prec;
+    mpfr_t z, fz, l, s, num, den, tmp;
+    mpfr_inits2(P, z, fz, l, s, num, den, tmp, (mpfr_ptr)0);
+
+    // Ensure fa and fb are opposite sign; if not, bail
+    if (!opposite_sign(fa, fb))
+    {
+        mpfr_set(root, a, MPFR_RNDN);
+        mpfr_clears(z, fz, l, s, num, den, tmp, (mpfr_ptr)0);
+        return false;
+    }
+
+    bool ok = false;
+    for (int it = 0; it < max_it; ++it)
+    {
+        // z = a - fa * (b - a) / (fb - fa)
+        mpfr_sub(l, b, a, MPFR_RNDN);     // l = b - a
+        mpfr_sub(den, fb, fa, MPFR_RNDN); // den = fb - fa
+        if (mpfr_zero_p(den))
+            break;
+        mpfr_mul(num, fa, l, MPFR_RNDN);  // num = fa * (b - a)
+        mpfr_div(s, num, den, MPFR_RNDN); // s = fa*(b-a)/(fb-fa)
+        mpfr_sub(z, a, s, MPFR_RNDN);     // z = a - s
+
+        if (!cache.get(z, fz))
+        {
+            compute_Z_dispatch(fz, z, use_threaded_z);
+            cache.put(z, fz);
+        }
+
+        // Stop on function tolerance
+        mpfr_t absfz;
+        mpfr_init2(absfz, P);
+        mpfr_abs(absfz, fz, MPFR_RNDN);
+        const double absfz_d = mpfr_get_d(absfz, MPFR_RNDN);
+        mpfr_clear(absfz);
+
+        if (absfz_d <= tol_abs)
+        {
+            mpfr_set(root, z, MPFR_RNDN);
+            ok = true;
+            break;
+        }
+
+        // Stop on interval tolerance
+        mpfr_t absl;
+        mpfr_init2(absl, P);
+        mpfr_abs(absl, l, MPFR_RNDN);
+        const double width = mpfr_get_d(absl, MPFR_RNDN);
+        mpfr_clear(absl);
+        if (width <= tol_step)
+        {
+            mpfr_set(root, z, MPFR_RNDN);
+            ok = true;
+            break;
+        }
+
+        // Update bracket with Pegasus scaling
+        if (opposite_sign(fz, fb))
+        {
+            // root in [z, b] -> shift a=z, scale fb by m=fb/(fb+fz)
+            // (pegasus scaling on the *unchanged* endpoint)
+            mpfr_t m;
+            mpfr_init2(m, P);
+            mpfr_add(tmp, fb, fz, MPFR_RNDN); // tmp = fb + fz
+            if (!mpfr_zero_p(tmp))
+            {
+                mpfr_div(m, fb, tmp, MPFR_RNDN); // m = fb/(fb+fz)
+                mpfr_mul(fa, fa, m, MPFR_RNDN);  // fa = m*fa
+            }
+            else
+            {
+                mpfr_div_ui(fa, fa, 2, MPFR_RNDN); // Illinois fallback
+            }
+            mpfr_set(a, z, MPFR_RNDN);
+            mpfr_set(fa, fz, MPFR_RNDN);
+            mpfr_clear(m);
+        }
+        else
+        {
+            // root in [a, z] -> shift b=z, scale fa by m
+            mpfr_t m;
+            mpfr_init2(m, P);
+            mpfr_add(tmp, fa, fz, MPFR_RNDN); // tmp = fa + fz
+            if (!mpfr_zero_p(tmp))
+            {
+                mpfr_div(m, fa, tmp, MPFR_RNDN); // m = fa/(fa+fz)
+                mpfr_mul(fb, fb, m, MPFR_RNDN);  // fb = m*fb
+            }
+            else
+            {
+                mpfr_div_ui(fb, fb, 2, MPFR_RNDN); // Illinois fallback
+            }
+            mpfr_set(b, z, MPFR_RNDN);
+            mpfr_set(fb, fz, MPFR_RNDN);
+            mpfr_clear(m);
+        }
+
+        // Keep best-so-far
+        mpfr_set(root, z, MPFR_RNDN);
+    }
+
+    mpfr_clears(z, fz, l, s, num, den, tmp, (mpfr_ptr)0);
+    return ok;
+}
 
 static inline double stage_step_tol(const mpfr_t t, double tol_abs)
 {
-    // Step limit relative to local zero spacing.
-    // Early stages allow bigger moves; later stages get tighter.
     const double s = est_spacing(t);
     const double k = std::clamp(std::sqrt(std::max(tol_abs, 1e-20)), 1e-4, 0.2);
-    const double raw = k * s;                     // fraction of spacing
-    return std::clamp(raw, CFG().h_min, 0.2 * s); // hard caps
+    const double raw = k * s;
+    return std::clamp(raw, CFG().h_min, 0.2 * s);
 }
 
-// Choose h for derivative (scale with spacing + precision)
 static inline double choose_h(const mpfr_t t)
 {
     const double s = est_spacing(t);
-    const double eps = std::ldexp(1.0, -(int)CFG().mpfr_prec); // 2^(-P)
+    const double eps = std::ldexp(1.0, -(int)CFG().mpfr_prec);
     const double mag = std::max(1.0, std::fabs(mpfr_get_d(t, MPFR_RNDN)));
     const double h0 = std::pow(eps, 1.0 / 3.0) * mag;
     return std::clamp(h0, 1e-9, 0.1 * s);
 }
 
-/* ==================== Derivatives ==================== */
-
-// 3-point central: Z'(t) ≈ (Z(t+h) - Z(t-h)) / (2h)
-static inline void diff_Z_3pt(mpfr_t dZ, const mpfr_t t, double h, int /*use_threaded_z*/)
+// 2-point forward: Z'(t) ≈ (Z(t+h) - Z(t)) / h
+static inline void diff_Z_2pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z, ZCache &cache)
 {
-    mpfr_t tp, tm, Zp, Zm;
-    mpfr_inits2(CFG().mpfr_prec, tp, tm, Zp, Zm, (mpfr_ptr)0);
+    mpfr_t tp, Zp, Zt, tmp;
+    mpfr_inits2(CFG().mpfr_prec, tp, Zp, Zt, tmp, (mpfr_ptr)0);
 
-    mpfr_set_d(tp,  h, MPFR_RNDN); mpfr_add(tp, t, tp, MPFR_RNDN);
-    mpfr_set_d(tm, -h, MPFR_RNDN); mpfr_add(tm, t, tm, MPFR_RNDN);
+    mpfr_set_d(tp, h, MPFR_RNDN);
+    mpfr_add(tp, t, tp, MPFR_RNDN);
 
-#ifdef _OPENMP
-    if (!omp_in_parallel())
+    if (!cache.get(tp, Zp))
     {
-        #pragma omp parallel sections num_threads(2)
-        {
-            #pragma omp section
-            { compute_Z(Zp, tp); }
-
-            #pragma omp section
-            { compute_Z(Zm, tm); }
-        }
+        compute_Z_dispatch(Zp, tp, use_threaded_z);
+        cache.put(tp, Zp);
     }
-    else
-#endif
+    if (!cache.get(t, Zt))
     {
-        compute_Z(Zp, tp);
-        compute_Z(Zm, tm);
+        compute_Z_dispatch(Zt, t, use_threaded_z);
+        cache.put(t, Zt);
     }
 
-    mpfr_t num; mpfr_init2(num, CFG().mpfr_prec);
-    mpfr_sub(num, Zp, Zm, MPFR_RNDN);
-    mpfr_div_d(dZ, num, 2.0 * h, MPFR_RNDN);
+    mpfr_sub(tmp, Zp, Zt, MPFR_RNDN);
+    mpfr_div_d(dZ, tmp, h, MPFR_RNDN);
 
-    mpfr_clears(tp, tm, Zp, Zm, num, (mpfr_ptr)0);
+    mpfr_clears(tp, Zp, Zt, tmp, (mpfr_ptr)0);
 }
 
-
-// 5-point: Z'(t) ≈ [ -Z(t+2h)+8Z(t+h)-8Z(t-h)+Z(t-2h) ]/(12h)
-static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int /*use_threaded_z*/)
+// 3-point central: Z'(t) ≈ (Z(t+h) - Z(t-h)) / (2h)
+static inline void diff_Z_3pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z, ZCache &cache)
 {
-    mpfr_t tp2,tp1,tm1,tm2, Zp2,Zp1,Zm1,Zm2;
-    mpfr_inits2(CFG().mpfr_prec, tp2,tp1,tm1,tm2, Zp2,Zp1,Zm1,Zm2, (mpfr_ptr)0);
+    mpfr_t tp, tm, Zp, Zm, tmp;
+    mpfr_inits2(CFG().mpfr_prec, tp, tm, Zp, Zm, tmp, (mpfr_ptr)0);
 
-    mpfr_set_d(tp2,  2*h, MPFR_RNDN); mpfr_add(tp2, t, tp2, MPFR_RNDN);
-    mpfr_set_d(tp1,    h, MPFR_RNDN); mpfr_add(tp1, t, tp1, MPFR_RNDN);
-    mpfr_set_d(tm1,   -h, MPFR_RNDN); mpfr_add(tm1, t, tm1, MPFR_RNDN);
-    mpfr_set_d(tm2, -2*h, MPFR_RNDN); mpfr_add(tm2, t, tm2, MPFR_RNDN);
+    mpfr_set_d(tp, h, MPFR_RNDN);
+    mpfr_add(tp, t, tp, MPFR_RNDN);
+    mpfr_set_d(tm, -h, MPFR_RNDN);
+    mpfr_add(tm, t, tm, MPFR_RNDN);
 
 #ifdef _OPENMP
     if (!omp_in_parallel())
     {
-        #pragma omp parallel sections num_threads(4)
+#pragma omp parallel sections num_threads(2)
         {
-            #pragma omp section
-            { compute_Z(Zp2, tp2); }
-
-            #pragma omp section
-            { compute_Z(Zp1, tp1); }
-
-            #pragma omp section
-            { compute_Z(Zm1, tm1); }
-
-            #pragma omp section
-            { compute_Z(Zm2, tm2); }
+#pragma omp section
+            {
+                if (!cache.get(tp, Zp))
+                {
+                    compute_Z_dispatch(Zp, tp, use_threaded_z);
+                    cache.put(tp, Zp);
+                }
+            }
+#pragma omp section
+            {
+                if (!cache.get(tm, Zm))
+                {
+                    compute_Z_dispatch(Zm, tm, use_threaded_z);
+                    cache.put(tm, Zm);
+                }
+            }
         }
     }
     else
 #endif
     {
-        compute_Z(Zp2, tp2);
-        compute_Z(Zp1, tp1);
-        compute_Z(Zm1, tm1);
-        compute_Z(Zm2, tm2);
+        if (!cache.get(tp, Zp))
+        {
+            compute_Z_dispatch(Zp, tp, use_threaded_z);
+            cache.put(tp, Zp);
+        }
+        if (!cache.get(tm, Zm))
+        {
+            compute_Z_dispatch(Zm, tm, use_threaded_z);
+            cache.put(tm, Zm);
+        }
     }
 
-    mpfr_t num, term; mpfr_inits2(CFG().mpfr_prec, num, term, (mpfr_ptr)0);
+    mpfr_sub(tmp, Zp, Zm, MPFR_RNDN);
+    mpfr_div_d(dZ, tmp, 2.0 * h, MPFR_RNDN);
+
+    mpfr_clears(tp, tm, Zp, Zm, tmp, (mpfr_ptr)0);
+}
+
+// 5-point: Z'(t) ≈ [ -Z(t+2h)+8Z(t+h)-8Z(t-h)+Z(t-2h) ]/(12h)
+static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z, ZCache &cache)
+{
+    mpfr_t tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, num, term;
+    mpfr_inits2(CFG().mpfr_prec, tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, num, term, (mpfr_ptr)0);
+
+    mpfr_set_d(tp2, 2 * h, MPFR_RNDN);
+    mpfr_add(tp2, t, tp2, MPFR_RNDN);
+    mpfr_set_d(tp1, h, MPFR_RNDN);
+    mpfr_add(tp1, t, tp1, MPFR_RNDN);
+    mpfr_set_d(tm1, -h, MPFR_RNDN);
+    mpfr_add(tm1, t, tm1, MPFR_RNDN);
+    mpfr_set_d(tm2, -2 * h, MPFR_RNDN);
+    mpfr_add(tm2, t, tm2, MPFR_RNDN);
+
+#ifdef _OPENMP
+    if (!omp_in_parallel())
+    {
+#pragma omp parallel sections num_threads(4)
+        {
+#pragma omp section
+            {
+                if (!cache.get(tp2, Zp2))
+                {
+                    compute_Z_dispatch(Zp2, tp2, use_threaded_z);
+                    cache.put(tp2, Zp2);
+                }
+            }
+#pragma omp section
+            {
+                if (!cache.get(tp1, Zp1))
+                {
+                    compute_Z_dispatch(Zp1, tp1, use_threaded_z);
+                    cache.put(tp1, Zp1);
+                }
+            }
+#pragma omp section
+            {
+                if (!cache.get(tm1, Zm1))
+                {
+                    compute_Z_dispatch(Zm1, tm1, use_threaded_z);
+                    cache.put(tm1, Zm1);
+                }
+            }
+#pragma omp section
+            {
+                if (!cache.get(tm2, Zm2))
+                {
+                    compute_Z_dispatch(Zm2, tm2, use_threaded_z);
+                    cache.put(tm2, Zm2);
+                }
+            }
+        }
+    }
+    else
+#endif
+    {
+        if (!cache.get(tp2, Zp2))
+        {
+            compute_Z_dispatch(Zp2, tp2, use_threaded_z);
+            cache.put(tp2, Zp2);
+        }
+        if (!cache.get(tp1, Zp1))
+        {
+            compute_Z_dispatch(Zp1, tp1, use_threaded_z);
+            cache.put(tp1, Zp1);
+        }
+        if (!cache.get(tm1, Zm1))
+        {
+            compute_Z_dispatch(Zm1, tm1, use_threaded_z);
+            cache.put(tm1, Zm1);
+        }
+        if (!cache.get(tm2, Zm2))
+        {
+            compute_Z_dispatch(Zm2, tm2, use_threaded_z);
+            cache.put(tm2, Zm2);
+        }
+    }
+
     mpfr_neg(num, Zp2, MPFR_RNDN);
-    mpfr_mul_ui(term, Zp1, 8, MPFR_RNDN); mpfr_add(num, num, term, MPFR_RNDN);
-    mpfr_mul_ui(term, Zm1, 8, MPFR_RNDN); mpfr_sub(num, num, term, MPFR_RNDN);
+    mpfr_mul_ui(term, Zp1, 8, MPFR_RNDN);
+    mpfr_add(num, num, term, MPFR_RNDN);
+    mpfr_mul_ui(term, Zm1, 8, MPFR_RNDN);
+    mpfr_sub(num, num, term, MPFR_RNDN);
     mpfr_add(num, num, Zm2, MPFR_RNDN);
     mpfr_div_d(dZ, num, 12.0 * h, MPFR_RNDN);
 
-    mpfr_clears(tp2,tp1,tm1,tm2, Zp2,Zp1,Zm1,Zm2, num, term, (mpfr_ptr)0);
+    mpfr_clears(tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, num, term, (mpfr_ptr)0);
 }
 
-/* ==================== Step control ==================== */
-
-// Backtrack on Δ; return false if step shrinks too much without improvement
 static inline bool backtrack_step(
     mpfr_t t,
     const mpfr_t Zcur,
     const mpfr_t delta,
     int use_threaded_z,
-    double min_fraction = 1.0 / 64.0,
+    ZCache &cache,
+    double min_fraction = 1.0 / 32.0,
     double min_abs_rel = 1e-18)
 {
     mpfr_t trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled;
     mpfr_inits2(CFG().mpfr_prec, trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled, (mpfr_ptr)0);
 
-    mpfr_set_ui(frac, 1, MPFR_RNDN); // λ
-    double frac_d = 1.0;
+    mpfr_set_ui(frac, 1, MPFR_RNDN);
+    double frac_d = 0.8;
 
     mpfr_abs(abs_cur, Zcur, MPFR_RNDN);
 
     bool ok = false;
-    for (int k = 0; k < 12; ++k)
+    for (int k = 0; k < 6; ++k)
     {
-        // scaled = λ * delta ; trial_t = t - scaled
+        mpfr_set_d(frac, frac_d, MPFR_RNDN);
         mpfr_mul(scaled, delta, frac, MPFR_RNDN);
         mpfr_abs(abs_scaled, scaled, MPFR_RNDN);
 
-        // too tiny absolute movement? bail
         const double tiny = mpfr_get_d(abs_scaled, MPFR_RNDN);
         const double tmag = std::max(1.0, std::fabs(mpfr_get_d(t, MPFR_RNDN)));
         if (tiny < min_abs_rel * tmag)
             break;
 
         mpfr_sub(trial_t, t, scaled, MPFR_RNDN);
-        compute_Z(trial_Z, trial_t);
+        if (!cache.get(trial_t, trial_Z))
+        {
+            compute_Z_dispatch(trial_Z, trial_t, use_threaded_z);
+            cache.put(trial_t, trial_Z);
+        }
 
         mpfr_t abs_trial;
         mpfr_init2(abs_trial, CFG().mpfr_prec);
@@ -178,62 +477,86 @@ static inline bool backtrack_step(
         }
         mpfr_clear(abs_trial);
 
-        // halve λ
         frac_d *= 0.5;
         if (frac_d < min_fraction)
             break;
-        mpfr_div_ui(frac, frac, 2, MPFR_RNDN);
     }
 
     mpfr_clears(trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled, (mpfr_ptr)0);
     return ok;
 }
 
-// If stuck (dZ ~ 0 and backtracking failed), try an adaptive nudge:
-// sample t ± h0 and move to the side with smaller |Z|.
-static inline bool descent_nudge(mpfr_t t, int /*use_threaded_z*/)
+static inline bool descent_nudge(mpfr_t t, int use_threaded_z, ZCache &cache)
 {
-    const double s  = est_spacing(t);
+    const double s = est_spacing(t);
     const double h0 = std::max(1e-12, std::min(0.2 * s, choose_h(t)));
 
     mpfr_t tp, tm, Zp, Zm;
     mpfr_inits2(CFG().mpfr_prec, tp, tm, Zp, Zm, (mpfr_ptr)0);
 
-    mpfr_set_d(tp,  h0, MPFR_RNDN); mpfr_add(tp, t, tp, MPFR_RNDN);
-    mpfr_set_d(tm, -h0, MPFR_RNDN); mpfr_add(tm, t, tm, MPFR_RNDN);
+    mpfr_set_d(tp, h0, MPFR_RNDN);
+    mpfr_add(tp, t, tp, MPFR_RNDN);
+    mpfr_set_d(tm, -h0, MPFR_RNDN);
+    mpfr_add(tm, t, tm, MPFR_RNDN);
 
 #ifdef _OPENMP
     if (!omp_in_parallel())
     {
-        #pragma omp parallel sections num_threads(2)
+#pragma omp parallel sections num_threads(2)
         {
-            #pragma omp section
-            { compute_Z(Zp, tp); }
-
-            #pragma omp section
-            { compute_Z(Zm, tm); }
+#pragma omp section
+            {
+                if (!cache.get(tp, Zp))
+                {
+                    compute_Z_dispatch(Zp, tp, use_threaded_z);
+                    cache.put(tp, Zp);
+                }
+            }
+#pragma omp section
+            {
+                if (!cache.get(tm, Zm))
+                {
+                    compute_Z_dispatch(Zm, tm, use_threaded_z);
+                    cache.put(tm, Zm);
+                }
+            }
         }
     }
     else
 #endif
     {
-        compute_Z(Zp, tp);
-        compute_Z(Zm, tm);
+        if (!cache.get(tp, Zp))
+        {
+            compute_Z_dispatch(Zp, tp, use_threaded_z);
+            cache.put(tp, Zp);
+        }
+        if (!cache.get(tm, Zm))
+        {
+            compute_Z_dispatch(Zm, tm, use_threaded_z);
+            cache.put(tm, Zm);
+        }
     }
 
-    mpfr_t aP, aM; mpfr_inits2(CFG().mpfr_prec, aP, aM, (mpfr_ptr)0);
+    mpfr_t aP, aM;
+    mpfr_inits2(CFG().mpfr_prec, aP, aM, (mpfr_ptr)0);
     mpfr_abs(aP, Zp, MPFR_RNDN);
     mpfr_abs(aM, Zm, MPFR_RNDN);
 
     bool moved = false;
-    if (mpfr_cmp(aP, aM) < 0)      { mpfr_set(t, tp, MPFR_RNDN); moved = true; }
-    else if (mpfr_cmp(aM, aP) < 0) { mpfr_set(t, tm, MPFR_RNDN); moved = true; }
+    if (mpfr_cmp(aP, aM) < 0)
+    {
+        mpfr_set(t, tp, MPFR_RNDN);
+        moved = true;
+    }
+    else if (mpfr_cmp(aM, aP) < 0)
+    {
+        mpfr_set(t, tm, MPFR_RNDN);
+        moved = true;
+    }
 
     mpfr_clears(tp, tm, Zp, Zm, aP, aM, (mpfr_ptr)0);
     return moved;
 }
-
-/* ==================== Newton driver ==================== */
 
 bool newton_refine_root_thread(
     mpfr_t t_out,
@@ -243,26 +566,61 @@ bool newton_refine_root_thread(
     int max_iter,
     int use_threaded_z)
 {
-
     omp_diag("startup");
 
-    mpfr_t t, Z, dZ, delta;
-    mpfr_inits2(CFG().mpfr_prec, t, Z, dZ, delta, (mpfr_ptr)0);
+    ZCache cache(CFG().mpfr_prec);
+    mpfr_t t, Z, dZ, delta, t_prev, Z_prev;
+    mpfr_inits2(CFG().mpfr_prec, t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+
+    mpfr_t br_a, br_b, br_fa, br_fb;
+    bool have_bracket = false;
+    mpfr_inits2(CFG().mpfr_prec, br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
 
     mpfr_set(t, t0, MPFR_RNDN);
-
-    // Secant safeguard state
-    mpfr_t t_prev, Z_prev;
-    mpfr_inits2(CFG().mpfr_prec, t_prev, Z_prev, (mpfr_ptr)0);
-
     bool have_prev = false;
 
     for (int it = 0; it < max_iter; ++it)
     {
-        // Evaluate Z(t)
-        compute_Z(Z, t);
+        LOGMP_DEBUG("-> iter = %d", it);
 
-        // Stop if |Z| small enough
+        if (!cache.get(t, Z))
+        {
+            compute_Z_dispatch(Z, t, use_threaded_z);
+            cache.put(t, Z);
+        }
+
+        // maintain/update a bracket when we see a sign change with previous iterate
+        if (have_prev && opposite_sign(Z_prev, Z))
+        {
+            // keep the narrower (better) bracket if we already had one
+            if (!have_bracket)
+            {
+                mpfr_set(br_a, t_prev, MPFR_RNDN);
+                mpfr_set(br_b, t, MPFR_RNDN);
+                mpfr_set(br_fa, Z_prev, MPFR_RNDN);
+                mpfr_set(br_fb, Z, MPFR_RNDN);
+                have_bracket = true;
+            }
+            else
+            {
+                // compare widths and keep the tighter one
+                mpfr_t new_w, old_w;
+                mpfr_inits2(CFG().mpfr_prec, new_w, old_w, (mpfr_ptr)0);
+                mpfr_sub(new_w, t, t_prev, MPFR_RNDN);
+                mpfr_abs(new_w, new_w, MPFR_RNDN);
+                mpfr_sub(old_w, br_b, br_a, MPFR_RNDN);
+                mpfr_abs(old_w, old_w, MPFR_RNDN);
+                if (mpfr_cmp(new_w, old_w) < 0)
+                {
+                    mpfr_set(br_a, t_prev, MPFR_RNDN);
+                    mpfr_set(br_b, t, MPFR_RNDN);
+                    mpfr_set(br_fa, Z_prev, MPFR_RNDN);
+                    mpfr_set(br_fb, Z, MPFR_RNDN);
+                }
+                mpfr_clears(new_w, old_w, (mpfr_ptr)0);
+            }
+        }
+
         mpfr_t absZ;
         mpfr_init2(absZ, CFG().mpfr_prec);
         mpfr_abs(absZ, Z, MPFR_RNDN);
@@ -275,9 +633,8 @@ bool newton_refine_root_thread(
             return true;
         }
 
-        // Derivative: start with 3pt; if too small/unstable, retry with 5pt and/or larger h
         double h = choose_h(t);
-        diff_Z_3pt(dZ, t, h, use_threaded_z);
+        diff_Z_2pt(dZ, t, h, use_threaded_z, cache);
 
         bool dZ_ok = !mpfr_zero_p(dZ);
         if (dZ_ok)
@@ -291,17 +648,20 @@ bool newton_refine_root_thread(
         }
         if (!dZ_ok)
         {
+            diff_Z_3pt(dZ, t, h, use_threaded_z, cache);
+            dZ_ok = !mpfr_zero_p(dZ);
+        }
+        if (!dZ_ok)
+        {
             const double h_big = std::min(2.0 * h, 0.2 * est_spacing(t));
-            diff_Z_5pt(dZ, t, h_big, use_threaded_z);
+            diff_Z_5pt(dZ, t, h_big, use_threaded_z, cache);
             dZ_ok = !mpfr_zero_p(dZ);
         }
 
-        // Compute Newton step delta = Z/dZ or fallbacks
         if (!dZ_ok)
         {
             if (have_prev)
             {
-                // Secant delta = Z * (t - t_prev) / (Z - Z_prev)
                 mpfr_t num, den;
                 mpfr_inits2(CFG().mpfr_prec, num, den, (mpfr_ptr)0);
                 mpfr_sub(den, Z, Z_prev, MPFR_RNDN);
@@ -317,13 +677,11 @@ bool newton_refine_root_thread(
             }
             else
             {
-                // No derivative and no secant: try a descent nudge
-                if (!descent_nudge(t, use_threaded_z))
+                if (!descent_nudge(t, use_threaded_z, cache))
                 {
-                    // tiny push and continue
                     mpfr_add_d(t, t, 1e-9, MPFR_RNDN);
                 }
-                continue; // iterate again
+                continue;
             }
         }
         else
@@ -331,7 +689,6 @@ bool newton_refine_root_thread(
             mpfr_div(delta, Z, dZ, MPFR_RNDN);
         }
 
-        // Clamp step size to stay within one valley
         const double s = est_spacing(t);
         const double step_max = 0.7 * s;
         double d_abs = std::fabs(mpfr_get_d(delta, MPFR_RNDN));
@@ -342,7 +699,6 @@ bool newton_refine_root_thread(
             d_abs = step_max;
         }
 
-        // If step already tiny, accept, A good zero foud based on the configured tol
         if (d_abs <= tol_step)
         {
             mpfr_set(t_out, t, MPFR_RNDN);
@@ -350,26 +706,75 @@ bool newton_refine_root_thread(
             return true;
         }
 
-        // Save state for secant fallback
         mpfr_set(t_prev, t, MPFR_RNDN);
         mpfr_set(Z_prev, Z, MPFR_RNDN);
         have_prev = true;
 
-        // Backtracking on Δ to guarantee |Z| descent
-        if (!backtrack_step(t, Z, delta, use_threaded_z))
+        // Try your backtracking first (kept).
+        if (!backtrack_step(t, Z, delta, use_threaded_z, cache))
         {
-            // Try a descent nudge (adaptive), then continue loop
-            if (!descent_nudge(t, use_threaded_z))
+            // If we have a bracket, use a few Pegasus/Illinois steps to jump safely.
+            if (have_bracket)
             {
-                // As final fallback, take the damped step anyway
+                mpfr_t z_br;
+                mpfr_init2(z_br, CFG().mpfr_prec);
+                bool ok_pega = pegasus_refine_bracket(
+                    z_br, br_a, br_b, br_fa, br_fb,
+                    /*tol_abs*/ tol_abs, /*tol_step*/ tol_step,
+                    /*max_it*/ 12, use_threaded_z, cache);
+                // Move to bracketed z if it helps; then continue Newton loop
+                if (ok_pega)
+                {
+                    mpfr_set(t, z_br, MPFR_RNDN);
+                    mpfr_clear(z_br);
+                    continue;
+                }
+                mpfr_clear(z_br);
+            }
+
+            // No bracketed help? fall back to your original nudge/step
+            if (!descent_nudge(t, use_threaded_z, cache))
+            {
                 mpfr_sub(t, t, delta, MPFR_RNDN);
             }
         }
     }
 
-    // No convergence: return last t
     mpfr_set(t_out, t, MPFR_RNDN);
     mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
-
     return false;
 }
+
+// Test harness for large t
+// #ifdef TEST_NEWTON
+// #include <chrono>
+// int main() {
+//     mpfr_t t, t_out;
+//     mpfr_init2(t, CFG().mpfr_prec);
+//     mpfr_init2(t_out, CFG().mpfr_prec);
+//
+//     const char* test_t = "1000000000000.00001";
+//     mpfr_set_str(t, test_t, 10, MPFR_RNDN);
+//
+//     auto start = std::chrono::high_resolution_clock::now();
+//     bool found = newton_refine_root_thread(t_out, t, 1e-18, 1e-18, 20, CFG().use_threaded_z);
+//     auto end = std::chrono::high_resolution_clock::now();
+//     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+//
+//     mpfr_t Z_final;
+//     mpfr_init2(Z_final, CFG().mpfr_prec);
+//     compute_Z(Z_final, t_out);
+//     mpfr_t absZ;
+//     mpfr_init2(absZ, CFG().mpfr_prec);
+//     mpfr_abs(absZ, Z_final, MPFR_RNDN);
+//
+//     printf("Initial t: %s\n", test_t);
+//     mpfr_printf("Refined t: %.20Rg\n", t_out);
+//     mpfr_printf("Final |Z|: %.20Rg\n", absZ);
+//     printf("Converged: %s\n", found ? "true" : "false");
+//     printf("Time: %ld ms\n", duration.count());
+//
+//     mpfr_clears(t, t_out, Z_final, absZ, (mpfr_ptr)0);
+//     return 0;
+// }
+// #endif
