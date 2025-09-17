@@ -17,7 +17,6 @@ SOURCES = \
   z_theta.cpp                 \
   z_walk.cpp                  \
   z_calculator_rs_gabcke.cpp  \
-  z_calculator_thread.cpp     \
   z_calculator_small.cpp      \
   z_calculator.cpp            \
   z_ball.cpp                  \

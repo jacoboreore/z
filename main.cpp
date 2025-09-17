@@ -6,6 +6,8 @@
 #include <gmp.h>
 #include <mpfr.h>
 
+#include <algorithm>
+
 #include "cli.h"
 #include "settings.h"
 #include "z_calculator.h" // compute_Z(...), rs_N_for_log(...), est_spacing(...)
@@ -17,12 +19,14 @@
 #include "z_walk.h"
 #include "logs.h"
 #include "utils.h"
+#include "z_calculator_os.hpp"
+#include "confirm_zero.h"
 
 int main(int argc, char **argv)
 {
-
     // print API version, MPFR, MPC, GMP
-    // Current version as for 07/01/2005
+    // Current version as for 07/01/2025
+    // Use these versions to avoid miscalculations or function crashing
 
     // MPFR runtime : 4.2.2
     // MPFR headers : 4.2.2
@@ -42,7 +46,7 @@ int main(int argc, char **argv)
     // Defaults are in settings.h
     config_init("conf/z.conf");
     std::cout << "\nCONFIG\n";
-    print_config(CFG());
+    //print_config(CFG());
 
     // global availability for logs
     g_main_log = CFG().rs_main_log;
@@ -61,8 +65,6 @@ int main(int argc, char **argv)
         return 81;
     }
 
-    ////////////////////////////////////////////////////////////
-
     // Calculations based on inputs
     if (opt.mode == Options::Mode::Z)
     {
@@ -74,9 +76,7 @@ int main(int argc, char **argv)
     else if (opt.mode == Options::Mode::ValleyScanner)
     {
         y_confirmed(t);
-        
-        // sanity print for the best y calculated
-        get_best_t_so_far();        
+        get_best_t_so_far();
     }
     else if (opt.mode == Options::Mode::Z_ball)
     {
@@ -88,7 +88,7 @@ int main(int argc, char **argv)
     }
     else if (opt.mode == Options::Mode::Pre_filter)
     {
-        bool result = z_prefilter(t, CFG().prefilter_alpha, CFG().prefilter_tau);
+        bool result = z_prefilter(t);
         mpfr_printf("Keep t as close to a zero (int 1 = true): %d\n", result);
     }
     else if (opt.mode == Options::Mode::Refine)
@@ -121,14 +121,109 @@ int main(int argc, char **argv)
                 CFG().use_threaded_z ? 1 : 0);
         }
 
-        //mpfr_printf("refine[%s]: t_in=%.15Rf  t_out=%.30Rf\n", ok ? "ok" : "stopped", t, t_star);
-
-        // ok = refine_in_stages(t_star, t, CFG().use_threaded_z);
-        // mpfr_printf("refine stages [%s]: t_in=%.15Rf  t_out=%.30Rf\n", ok ? "ok" : "stopped", t, t_star);
-
         get_best_t_so_far();
 
         mpfr_clear(t_star);
+    }
+    else if (opt.mode == Options::Mode::OS_valley)
+    {
+
+        osvalley::OSConfig oc;
+
+        oc.enable_min_t = 1e8L;     // only use OS when t0 >= this
+        oc.samples_per_spacing = 8; // Δt = spacing / S
+        oc.K_points = 1024;         // points computed per block (≤ M)
+        oc.delta_log_max = 1e-3L;   // bin width in log n (smaller → more accurate)
+        oc.poly_deg_R = 4;          // Taylor degree (2..6 reasonable)
+        oc.return_main_sum = false; // if true: skip θ factor (debug)
+        oc.debug = false;
+
+        const osvalley::Real t0 = mpfr_to_long_double_safe(t, MPFR_RNDN);
+
+        auto blk = osvalley::scan_valley_OS(t0, oc);
+
+        auto ev = osquick::analyze_block(blk,
+                                         /*absZ_tol=*/(osvalley::Real)0.0000001,
+                                         /*ratio_tol=*/(osvalley::Real)0.1);
+
+        osquick::print_summary(ev);
+
+        // Simple policy for your valley scanner:
+        if (!ev.near)
+        {
+            // you're “just far”: scale your coarse jump by ev.suggested_step
+            // (clamp if you like: e.g. to 0.8*spacing)
+            printf("far");
+
+            const osvalley::Real max_j = 0.8L * ev.spacing;
+            const osvalley::Real step =
+                std::clamp(ev.suggested_step, -max_j, +max_j);
+            // advance t by `step` and resample, or adjust your own stepper
+        }
+        else
+        {
+            printf("close");
+            // either |Z| small, sign flip in block, or dt small relative to spacing:
+            // hand off to your sign-change/valley logic + high-prec Newton polish.
+        }
+
+        bool yeah = osquick::os_keep_for_valley(ev, 1e-2L,
+                                                0.5L,
+                                                0.5L,
+                                                10.0L);
+
+        printf("\n----> OSSSSSSSSSS %d\n", yeah);
+
+        // build an OS block around your current t_cur
+        auto block = osvalley::scan_valley_OS(t0, oc);
+
+        // get spacing however you already do
+        osvalley::Real spacing = est_spacing(t); // π/log(t/2π)
+
+        // ask OS for a ratio-driven step
+        auto step = osvalley::os_ratio_step_from_block(block, t0, spacing,
+                                                       /*R_target=*/osvalley::Real(5.0));
+
+        // your valley-scanner policy:
+        if (step.flip_ahead)
+        {
+            LOGMP_DEBUG("OS approximatting the valley");
+            // hit the valley edge; refine around t_cur + step.dt_suggest
+        }
+        else if (step.ratio < 1.5)
+        {
+            LOGMP_DEBUG("OS improve");
+            // improvement too small -> increase step next time (or re-run with larger R_target)
+        }
+        else
+        {
+            // take the suggested step
+            // t0 += step.dt_suggest;
+        }
+
+        // 1) Make OS block
+        block = osvalley::scan_valley_OS(t0, oc);
+
+        // 2) Classify
+        osvalley::OSDecision d = osvalley::os_classify_block(block, oc);
+
+        // 3) Act
+        switch (d.verdict)
+        {
+        case osvalley::OSVerdict::ACCEPT:
+            printf("\n Run Newton\n");
+            // Run Newton (full or small RS) from d.t_seed
+            // newton_refine_root(t_out, d.t_seed, …);
+            break;
+        case osvalley::OSVerdict::REJECT:
+            // Skip this t (junk); increase your stride aggressively
+            printf("\n DROP\n");
+            break;
+        case osvalley::OSVerdict::RESCAN:
+            printf("\n More samples\n");
+            // Keep but maybe: increase samples_per_spacing OR slide t0 ± spacing/2
+            break;
+        }
     }
     else
     {

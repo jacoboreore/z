@@ -5,7 +5,6 @@
 #include <unordered_map>
 #include "refine_newton.h"
 #include "confirm_zero.h"        // est_spacing, use_threaded_for_t
-#include "z_calculator_thread.h" // compute_Z_threaded(mpfr_t Z, mpfr_t t)
 #include "z_calculator.h"
 #include "settings.h"
 #include "logs.h"

@@ -1,8 +1,9 @@
 #pragma once
 #include <mpfr.h>
 #include "settings.h"
+#include "z_calculator.h"  // compute_Z_small(mpfr_t, const mpfr_t)
 #include "z_calculator_small.h"  // compute_Z_small(mpfr_t, const mpfr_t)
-#include "z_calculator_thread.h" // compute_Z_threaded(mpfr_t, mpfr_t)
+
 
 // Estimate local spacing s ≈ π / log(t/2π)
 static inline double est_spacing(const mpfr_t t)
@@ -67,8 +68,8 @@ static inline bool confirm_zero_like(const mpfr_t t, int use_threaded_z)
         mpfr_inits2(CFG().mpfr_prec, tpc, tmc, (mpfr_ptr)0);
         mpfr_set(tpc, tp, MPFR_RNDN);
         mpfr_set(tmc, tm, MPFR_RNDN);
-        compute_Z_threaded(Zp, tpc);
-        compute_Z_threaded(Zm, tmc);
+        compute_Z(Zp, tpc);
+        compute_Z(Zm, tmc);
         mpfr_clears(tpc, tmc, (mpfr_ptr)0);
     }
     else

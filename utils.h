@@ -52,3 +52,8 @@ inline std::ostream &operator<<(std::ostream &os, const MpfrPrintable &m)
 }
 
 void get_best_t_so_far();
+
+void remainder_bound(mpfr_t R, const mpfr_t t);
+
+long double mpfr_to_long_double_safe(const mpfr_t x, mpfr_rnd_t rnd);
+

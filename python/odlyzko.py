@@ -240,7 +240,7 @@ def Z_block_OS(T, K=64, h=mp.mpf('0.05'), dps=80, block_alpha=mp.mpf('0.66'),
 # ----------------------------
 if __name__ == "__main__":
     mp.mp.dps = 60
-    T  = mp.mpf('30000002.84153308006787685537667108044353059322116795894864')      # demo scale; raise with care
+    T  = mp.mpf('440012345677')      # demo scale; raise with care
     K  = 8
     h  = mp.mpf('0.1')
 

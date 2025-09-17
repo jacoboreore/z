@@ -1,11 +1,11 @@
+#include <cmath>
 #include "z_ball.h"
 #include "settings.h"
 #include "z_calculator.h"
 #include "z_theta.h"
 #include "z_calculator_small.h"
 #include "z_calculator_rs_gabcke.h"
-#include "z_calculator_thread.h"
-#include <cmath>
+#include "utils.h"
 
 static inline bool use_threaded_for_t(const mpfr_t t)
 {

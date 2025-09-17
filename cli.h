@@ -9,8 +9,9 @@ struct Options
         Z,
         Z_ball,
         ValleyScanner,
+        OS_valley,
         Refine,
-        Pre_filter
+        Pre_filter,
     } mode;
 
     std::string t_str;    // raw decimal string for t

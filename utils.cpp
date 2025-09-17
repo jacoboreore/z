@@ -3,6 +3,8 @@
 #include "logs.h"
 #include "settings.h"
 #include <cassert>
+#include <limits>
+#include <cmath>
 
 static std::mutex &best_mutex()
 {
@@ -98,4 +100,36 @@ void get_best_t_so_far()
           best_absZ);
 
     mpfr_clears(best_t, best_absZ, (mpfr_ptr)0);
+}
+
+// Simple diagnostic tail bound you already had
+void remainder_bound(mpfr_t R, const mpfr_t t)
+{
+    const double C = CFG().rs_tail_C;
+    mpfr_t r, tmp;
+    mpfr_inits2(CFG().mpfr_prec, r, tmp, (mpfr_ptr)0);
+    mpfr_sqrt(tmp, t, MPFR_RNDN); // √t
+    mpfr_sqrt(r, tmp, MPFR_RNDN); // t^(1/4)
+    mpfr_ui_div(R, 1, r, MPFR_RNDN);
+    mpfr_mul_d(R, R, C, MPFR_RNDN);
+    mpfr_clears(r, tmp, (mpfr_ptr)0);
+}
+
+long double mpfr_to_long_double_safe(const mpfr_t x,
+                                            mpfr_rnd_t rnd = MPFR_RNDN) {
+    if (!mpfr_number_p(x)) {
+        if (mpfr_nan_p(x))   return std::numeric_limits<long double>::quiet_NaN();
+        if (mpfr_inf_p(x) > 0) return std::numeric_limits<long double>::infinity();
+        if (mpfr_inf_p(x) < 0) return -std::numeric_limits<long double>::infinity();
+    }
+
+    long double v = mpfr_get_ld(x, rnd);
+
+    // Optional: clamp if it overflowed the long double range
+    if (!std::isfinite(v)) {
+        return (mpfr_sgn(x) >= 0)
+            ? std::numeric_limits<long double>::infinity()
+            : -std::numeric_limits<long double>::infinity();
+    }
+    return v;
 }

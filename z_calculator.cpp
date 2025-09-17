@@ -1,8 +1,6 @@
 #include <mpfr.h>
 #include <mpc.h>
 #include <cmath>
-#include <iostream>
-#include <iomanip>
 #include "z_calculator_rs_gabcke.h"
 #include "z_calculator_small.h"
 #include "confirm_zero.h"
@@ -146,67 +144,129 @@ void compute_Z_ball(mpfr_t Z, mpfr_t t)
     zballv_clear(b);
 }
 
-bool z_prefilter(const mpfr_t t, double alpha, double tau)
+// ---------- quick theta for prefilter (3-term Stirling) ----------
+static inline void theta_quick(mpfr_t theta, const mpfr_t t)
 {
-    print_val("PRE FILTER PROCESS t = ", t, 24);
+    const mpfr_prec_t P = mpfr_get_prec(t);
+    mpfr_t pi, two_pi, u, half_t, term1, pi_over_8, invt, invt3, tmp;
+    mpfr_inits2(P, pi, two_pi, u, half_t, term1, pi_over_8, invt, invt3, tmp, (mpfr_ptr)0);
 
-    // Clamp alpha to sensible bounds
-    if (alpha <= 0.0)
-        alpha = 0.25;
-    if (alpha >= 1.0)
-        alpha = 0.8;
+    mpfr_const_pi(pi, MPFR_RNDN);
+    mpfr_mul_ui(two_pi, pi, 2, MPFR_RNDN);
 
-    // --- Compute N first with a tiny, self-contained MPFR scope (no leaks on early return)
-    long N;
+    // u = t / (2π)
+    mpfr_div(u, t, two_pi, MPFR_RNDN);
+
+    // half_t = t/2
+    mpfr_div_ui(half_t, t, 2, MPFR_RNDN);
+
+    // term1 = (t/2)*log(t/(2π)) - (t/2)
+    mpfr_log(term1, u, MPFR_RNDN);
+    mpfr_mul(term1, term1, half_t, MPFR_RNDN);
+    mpfr_sub(term1, term1, half_t, MPFR_RNDN);
+
+    // theta = term1 - π/8
+    mpfr_div_ui(pi_over_8, pi, 8, MPFR_RNDN);
+    mpfr_sub(theta, term1, pi_over_8, MPFR_RNDN);
+
+    // + 1/(48 t) + 7/(5760 t^3)
+    mpfr_ui_div(invt, 1, t, MPFR_RNDN);
+    mpfr_mul(invt3, invt, invt, MPFR_RNDN);
+    mpfr_mul(invt3, invt3, invt, MPFR_RNDN);
+
+    // tmp = 1/48 * 1/t
+    mpfr_set_ui(tmp, 1, MPFR_RNDN);
+    mpfr_div_ui(tmp, tmp, 48, MPFR_RNDN);
+    mpfr_mul(tmp, tmp, invt, MPFR_RNDN);
+    mpfr_add(theta, theta, tmp, MPFR_RNDN);
+
+    // tmp = 7/5760 * 1/t^3
+    mpfr_set_ui(tmp, 7, MPFR_RNDN);
+    mpfr_div_ui(tmp, tmp, 5760, MPFR_RNDN);
+    mpfr_mul(tmp, tmp, invt3, MPFR_RNDN);
+    mpfr_add(theta, theta, tmp, MPFR_RNDN);
+
+    mpfr_clears(pi, two_pi, u, half_t, term1, pi_over_8, invt, invt3, tmp, (mpfr_ptr)0);
+}
+
+// ---------- 3-term fast log1p for tiny x (|x| <= 1e-3) ----------
+static inline void fast_log1p_3(mpfr_t out, const mpfr_t x)
+{
+    const double xd = mpfr_get_d(x, MPFR_RNDN);
+    if (std::fabs(xd) <= 1e-3)
     {
-        mpfr_t pi, two_pi, tmp;
-        mpfr_inits2(CFG().mpfr_prec, pi, two_pi, tmp, (mpfr_ptr)0);
-        mpfr_const_pi(pi, MPFR_RNDN);
-        mpfr_mul_ui(two_pi, pi, 2, MPFR_RNDN);
-        mpfr_div(tmp, t, two_pi, MPFR_RNDN);
-        mpfr_sqrt(tmp, tmp, MPFR_RNDN);
-        N = mpfr_get_si(tmp, MPFR_RNDN);
-        if (N < 1)
-            N = 1;
-        mpfr_clears(pi, two_pi, tmp, (mpfr_ptr)0);
+        const mpfr_prec_t P = mpfr_get_prec(x);
+        mpfr_t x2, x3, tmp;
+        mpfr_inits2(P, x2, x3, tmp, (mpfr_ptr)0);
+        mpfr_mul(x2, x, x, MPFR_RNDN);  // x^2
+        mpfr_mul(x3, x2, x, MPFR_RNDN); // x^3
+        // out = x - x^2/2 + x^3/3
+        mpfr_div_ui(tmp, x2, 2, MPFR_RNDN); // x^2/2
+        mpfr_neg(tmp, tmp, MPFR_RNDN);      // -x^2/2
+        mpfr_add(out, x, tmp, MPFR_RNDN);   // x - x^2/2
+        mpfr_div_ui(tmp, x3, 3, MPFR_RNDN); // x^3/3
+        mpfr_add(out, out, tmp, MPFR_RNDN); // ... + x^3/3
+        mpfr_clears(x2, x3, tmp, (mpfr_ptr)0);
     }
+    else
+    {
+        mpfr_log1p(out, x, MPFR_RNDN);
+    }
+}
 
-    // --- Small-N fast gate (no large allocations before we might return)
+bool z_prefilter(const mpfr_t t)
+{
+    // pull knobs only from CFG()
+    double alpha = CFG().prefilter_alpha;
+    double tau = CFG().prefilter_tau;
+    double tau_boost = CFG().prefilter_tau_boost;
+
+    if (!(alpha > 0.0 && alpha < 1.0))
+        alpha = 0.98;
+
+    const long N = rs_N(t);
+
+    // cheap small-N gate
     if (N < 8)
     {
         mpfr_t Zs;
         mpfr_init2(Zs, CFG().mpfr_prec);
         compute_Z_small(Zs, t);
-        double az = std::fabs(mpfr_get_d(Zs, MPFR_RNDN));
-        mpfr_clear(Zs);
+        const double az = std::fabs(mpfr_get_d(Zs, MPFR_RNDN));
 
-        if (az <= 1e-2)
-            return true; // near zero → keep
+        LOGMP("N = %.*Rf |Z_small| = %.*Rg Keep = %s",
+              N,
+              az,
+              ((az < 0.3) ? "YES" : "NO-ish"));
+
+        mpfr_clear(Zs);
         if (az >= 0.3)
-            return false; // clearly far → drop
-        return true;      // ambiguous? favor recall
+            return false;
+        if (az <= 1e-2)
+            return true;
+        return true; // ambiguous -> keep
     }
 
-    // --- Choose K = floor(alpha*N), bounded to [min(4,N), N]
+    // K = floor(alpha * N)
     long K = (long)std::floor(alpha * (double)N);
     if (K < 4)
-        K = (N >= 4 ? 4 : N);
+        K = std::min<long>(N, 4);
     if (K > N)
         K = N;
 
-    // --- Now allocate all MPFR vars we need for the main path
-    mpfr_t theta, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd;
-    mpfr_inits2(CFG().mpfr_prec, theta, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd, (mpfr_ptr)0);
+    // fast theta
+    mpfr_t theta;
+    mpfr_init2(theta, CFG().mpfr_prec);
+    theta_quick(theta, t);
 
-    // theta via Stirling wrapper (uses CFG().theta_stirling_terms)
-    compute_theta_stirling(theta, t);
+    // sum S_K
+    mpfr_t S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd;
+    mpfr_inits2(CFG().mpfr_prec, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd, (mpfr_ptr)0);
 
-    // Start at n = 1
     mpfr_set_zero(S, 0);
     mpfr_set_ui(n, 1, MPFR_RNDN);
-    mpfr_log(ln_n, n, MPFR_RNDN);
-    mpfr_mul(phi, t, ln_n, MPFR_RNDN);
-    mpfr_sub(phi, theta, phi, MPFR_RNDN);
+    mpfr_set_zero(ln_n, 0);
+    mpfr_sub(phi, theta, ln_n, MPFR_RNDN);
 
 #if MPFR_VERSION_MAJOR > 4 || (MPFR_VERSION_MAJOR == 4 && MPFR_VERSION_MINOR >= 1)
     mpfr_sin_cos(sphi, cphi, phi, MPFR_RNDN);
@@ -214,18 +274,72 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
     mpfr_cos(cphi, phi, MPFR_RNDN);
     mpfr_sin(sphi, phi, MPFR_RNDN);
 #endif
-    mpfr_add(S, S, cphi, MPFR_RNDN); // term at n=1
+    mpfr_add(S, S, cphi, MPFR_RNDN); // n=1 term
 
-    // Rotation accumulators
     mpfr_t new_c, new_s, sqrt_i1, i1, tmp;
     mpfr_inits2(CFG().mpfr_prec, new_c, new_s, sqrt_i1, i1, tmp, (mpfr_ptr)0);
+
+    // internal tunables (can be moved to CFG() later if you want)
+    const int BLOCK = 512;
+    const int FASTLOG1P_MIN_I = 1000;
+    const double R_SAFETY_MULTIPLIER = 1.05;
+
+    // std::cerr << "[prefilter] N=" << N << "  K=" << K
+    //           << "  alpha=" << alpha
+    //           << "  tau=" << tau
+    //           << "  tau_boost=" << tau_boost << "\n";
+
+    auto emit_snapshot = [&](long i_or_K, const mpfr_t Sk)
+    {
+        // compute snapshot metrics
+        mpfr_t twoS, abs_twoS, tail, sqrtN, sqrtK, R, L, UB, TauEff;
+        mpfr_inits2(CFG().mpfr_prec, twoS, abs_twoS, tail, sqrtN, sqrtK, R, L, UB, TauEff, (mpfr_ptr)0);
+
+        // |2S|
+        mpfr_mul_ui(twoS, Sk, 2, MPFR_RNDN);
+        mpfr_abs(abs_twoS, twoS, MPFR_RNDN);
+
+        // 2*T_K with Ki = i_or_K
+        mpfr_set_ui(sqrtN, (unsigned long)N, MPFR_RNDN);
+        mpfr_sqrt(sqrtN, sqrtN, MPFR_RNDN);
+        mpfr_set_ui(sqrtK, (unsigned long)i_or_K, MPFR_RNDN);
+        mpfr_sqrt(sqrtK, sqrtK, MPFR_RNDN);
+        mpfr_sub(tail, sqrtN, sqrtK, MPFR_RNDN);
+        mpfr_mul_ui(tail, tail, 4, MPFR_RNDN); // 2*T
+
+        remainder_bound(R, t);
+        mpfr_mul_d(R, R, R_SAFETY_MULTIPLIER, MPFR_RNDN);
+
+        // L = |2S| - (2T + R)
+        mpfr_sub(L, abs_twoS, tail, MPFR_RNDN);
+        mpfr_sub(L, L, R, MPFR_RNDN);
+
+        // UB = |2S| + (2T + R)
+        mpfr_add(UB, abs_twoS, tail, MPFR_RNDN);
+        mpfr_add(UB, UB, R, MPFR_RNDN);
+
+        const double tau_eff = tau + tau_boost / std::sqrt((double)N);
+        mpfr_set_d(TauEff, tau_eff, MPFR_RNDN);
+
+        // keep if L <= tau_eff
+        const bool keep_here = (mpfr_cmp_d(L, tau_eff) <= 0);
+
+        mpfr_clears(twoS, abs_twoS, tail, sqrtN, sqrtK, R, L, UB, TauEff, (mpfr_ptr)0);
+        return keep_here;
+    };
+
+    bool decided = false;
+    bool keep = true; // default favoring recall
 
     for (long i = 1; i < K; ++i)
     {
         // Δφ = t * log1p(1/i)
         mpfr_set_ui(n, (unsigned long)i, MPFR_RNDN);
-        mpfr_ui_div(q, 1, n, MPFR_RNDN); // q = 1/i
-        mpfr_log1p(dphi, q, MPFR_RNDN);
+        mpfr_ui_div(q, 1, n, MPFR_RNDN);
+        if (i >= FASTLOG1P_MIN_I)
+            fast_log1p_3(dphi, q);
+        else
+            mpfr_log1p(dphi, q, MPFR_RNDN);
         mpfr_mul(dphi, dphi, t, MPFR_RNDN);
 
 #if MPFR_VERSION_MAJOR > 4 || (MPFR_VERSION_MAJOR == 4 && MPFR_VERSION_MINOR >= 1)
@@ -234,13 +348,11 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
         mpfr_cos(cd, dphi, MPFR_RNDN);
         mpfr_sin(sd, dphi, MPFR_RNDN);
 #endif
-        // Rotate: (cphi, sphi) ← (cphi, sphi) * R(−Δφ)
-        // new_c = c*cd + s*sd
+        // rotate (c,s) by -Δφ
         mpfr_mul(new_c, cphi, cd, MPFR_RNDN);
         mpfr_mul(tmp, sphi, sd, MPFR_RNDN);
         mpfr_add(new_c, new_c, tmp, MPFR_RNDN);
 
-        // new_s = s*cd − c*sd
         mpfr_mul(new_s, sphi, cd, MPFR_RNDN);
         mpfr_mul(tmp, cphi, sd, MPFR_RNDN);
         mpfr_sub(new_s, new_s, tmp, MPFR_RNDN);
@@ -248,57 +360,32 @@ bool z_prefilter(const mpfr_t t, double alpha, double tau)
         mpfr_set(cphi, new_c, MPFR_RNDN);
         mpfr_set(sphi, new_s, MPFR_RNDN);
 
-        // Add term (n = i+1): cos(phi) / sqrt(i+1)
+        // term for n = i+1
         mpfr_set_ui(i1, (unsigned long)(i + 1), MPFR_RNDN);
         mpfr_sqrt(sqrt_i1, i1, MPFR_RNDN);
         mpfr_div(tmp, cphi, sqrt_i1, MPFR_RNDN);
         mpfr_add(S, S, tmp, MPFR_RNDN);
+
+        if ((i % BLOCK) == 0)
+        {
+            const bool keep_here = emit_snapshot(i + 1, S);
+            if (!keep_here)
+            {
+                keep = false;
+                decided = true;
+                break;
+            }
+        }
     }
 
-    mpfr_clears(new_c, new_s, sqrt_i1, i1, tmp, (mpfr_ptr)0);
+    if (!decided)
+    {
+        // final decision
+        keep = emit_snapshot(K, S);
+    }
 
-    // --- Bounds and decision
-    mpfr_t twoS, abs_twoS, tail, sqrtN, sqrtK, R, L, TauEff;
-    mpfr_inits2(CFG().mpfr_prec, twoS, abs_twoS, tail, sqrtN, sqrtK, R, L, TauEff, (mpfr_ptr)0);
+    LOGMP("[prefilter] DECISION: %s", (keep ? "KEEP" : "DROP"));
 
-    // |2 S_K|
-    mpfr_mul_ui(twoS, S, 2, MPFR_RNDN);
-    mpfr_abs(abs_twoS, twoS, MPFR_RNDN);
-
-    // 2*T_K = 4 (√N − √K)
-    mpfr_set_ui(sqrtN, (unsigned long)N, MPFR_RNDN);
-    mpfr_sqrt(sqrtN, sqrtN, MPFR_RNDN);
-    mpfr_set_ui(sqrtK, (unsigned long)K, MPFR_RNDN);
-    mpfr_sqrt(sqrtK, sqrtK, MPFR_RNDN);
-    mpfr_sub(tail, sqrtN, sqrtK, MPFR_RNDN);
-    mpfr_mul_ui(tail, tail, 4, MPFR_RNDN); // tail now holds 2*T_K for Z
-
-    // RS remainder bound
-    remainder_bound(R, t);
-
-    // L = |2 S_K| - 2*T_K - R
-    mpfr_sub(L, abs_twoS, tail, MPFR_RNDN);
-    mpfr_sub(L, L, R, MPFR_RNDN);
-
-    // τ_eff = τ + c / √N  (slightly relaxed for small N)
-    double tau_boost = CFG().prefilter_tau_boost; // tune: 0.4–0.7 works well
-    double tau_eff = tau + tau_boost / std::sqrt((double)N);
-    mpfr_set_d(TauEff, tau_eff, MPFR_RNDN);
-
-    bool keep = (mpfr_cmp(L, TauEff) <= 0);
-
-    // --- Logs
-    std::cerr << "[prefilter] N=" << N << " K=" << K
-              << " alpha=" << alpha << " tau=" << tau << "\n";
-    //log_mpfr("[prefilter] |2S_K|", abs_twoS, 18);
-    //log_mpfr("[prefilter] 2*T_K", tail, 18);
-    //log_mpfr("[prefilter] R", R, 18);
-    //log_mpfr("[prefilter] L", L, 18);
-    std::cerr << "[prefilter] keep=" << (keep ? "YES" : "NO") << "\n";
-
-    // --- Cleanup
-    mpfr_clears(theta, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd, (mpfr_ptr)0);
-    mpfr_clears(twoS, abs_twoS, tail, sqrtN, sqrtK, R, L, TauEff, (mpfr_ptr)0);
-
+    mpfr_clears(theta, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd, new_c, new_s, sqrt_i1, i1, tmp, (mpfr_ptr)0);
     return keep;
 }

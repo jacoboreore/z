@@ -4,7 +4,6 @@
 #include "refine_newton.h"
 #include "confirm_zero.h" // est_spacing, use_threaded_for_t
 // #include "z_calculator_small.h"   // compute_Z_small(...)
-#include "z_calculator_thread.h" // compute_Z_threaded(... requires non-const t)
 #include "z_calculator.h"
 // #include "z_calculator_rs_gabcke.h"
 #include "settings.h"

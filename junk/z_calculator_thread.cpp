@@ -6,18 +6,18 @@
 #include "logs.h"      // //log_mpfr(...)
 #include "settings.h"  // CFG()
 
-// Simple diagnostic tail bound you already had
-void remainder_bound(mpfr_t R, const mpfr_t t)
-{
-    const double C = CFG().rs_tail_C;
-    mpfr_t r, tmp;
-    mpfr_inits2(CFG().mpfr_prec, r, tmp, (mpfr_ptr)0);
-    mpfr_sqrt(tmp, t, MPFR_RNDN); // √t
-    mpfr_sqrt(r, tmp, MPFR_RNDN); // t^(1/4)
-    mpfr_ui_div(R, 1, r, MPFR_RNDN);
-    mpfr_mul_d(R, R, C, MPFR_RNDN);
-    mpfr_clears(r, tmp, (mpfr_ptr)0);
-}
+// // Simple diagnostic tail bound you already had
+// void remainder_bound(mpfr_t R, const mpfr_t t)
+// {
+//     const double C = CFG().rs_tail_C;
+//     mpfr_t r, tmp;
+//     mpfr_inits2(CFG().mpfr_prec, r, tmp, (mpfr_ptr)0);
+//     mpfr_sqrt(tmp, t, MPFR_RNDN); // √t
+//     mpfr_sqrt(r, tmp, MPFR_RNDN); // t^(1/4)
+//     mpfr_ui_div(R, 1, r, MPFR_RNDN);
+//     mpfr_mul_d(R, R, C, MPFR_RNDN);
+//     mpfr_clears(r, tmp, (mpfr_ptr)0);
+// }
 
 // Slow but simple direct sum — useful to sanity check S for small N.
 static void rs_sum_direct(mpfr_t S, mpfr_srcptr t, mpfr_srcptr theta, long N)
