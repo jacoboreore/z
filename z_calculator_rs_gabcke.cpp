@@ -799,7 +799,6 @@ static void Z_rs_with_gabcke(
         if (CFG().use_threaded_z)
         {
             LOGMP_DEBUG("Processing parallelized RS-Gabcke...");
-            //Z_rs_main_parallel(Zmain, t, theta, P, C, /*threads*/ 0, /*block_size*/ 8192);
             Z_rs_main_parallel(Zmain, t, theta, P, C, /*threads*/ 0, /*block_size*/ 0);
         }
         else

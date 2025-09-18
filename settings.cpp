@@ -168,11 +168,11 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
     else if (ieq(k, "valley_aggressive_factor"))
         c.valley_aggressive_factor = std::stod(v);
     else if (ieq(k, "valley_tolerance_to_step"))
-        c.valley_aggressive_factor = std::stod(v);
+        c.valley_tolerance_to_step = std::stod(v);
     else if (ieq(k, "valley_max_step"))
-        c.valley_aggressive_factor = std::stod(v);
+        c.valley_max_step = std::stod(v);
     else if (ieq(k, "valley_max_Zs_relation"))
-        c.valley_aggressive_factor = std::stod(v);
+        c.valley_max_Zs_relation = std::stod(v);
 
     else if (ieq(k, "enable_min_t"))
         c.enable_min_t = std::stold(v);
@@ -276,7 +276,7 @@ void print_config(const Config &c)
     const int D = c.rs_log_digits > 0 ? c.rs_log_digits : 18;
 
     LOGMP_DEBUG("\n");
-    
+
     log_kv("mpfr_prec", c.mpfr_prec);
 
     // --- prefilter ---

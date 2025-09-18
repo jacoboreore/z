@@ -43,7 +43,7 @@ static inline void smart_step(const mpfr_t z_prev,
     // z is far from zero, tolerance 0.1
     if (mpfr_cmp(ts, abs_cur) < 0)
     {
-        LOGMP_DEBUG("Applying aggressive step");
+        LOGMP_DEBUG("Applying aggressive step, |Z| is too far from zero");
         if (mpfr_cmp(ms, smart_step) > 0)
             mpfr_mul(smart_step, smart_step, aggressive_factor, MPFR_RNDN);
     }
@@ -51,7 +51,7 @@ static inline void smart_step(const mpfr_t z_prev,
     {
         if (!soft_landing)
         {
-            LOGMP_DEBUG("Reseting to smart step...");
+            LOGMP_DEBUG("------> Reseting to smart step for a soft landing...");
             if (mpfr_sgn(smart_step) < 0)
             {
                 mpfr_set(smart_step, grow, MPFR_RNDN);
@@ -71,8 +71,9 @@ static inline void smart_step(const mpfr_t z_prev,
             // if the relation between the previous Z and the current Z is less than mzr, we are walkig too slowly
             if (mpfr_cmp(mzr, tmp) > 0)
             {
-                LOGMP("Increasing aggressively the step to a better z", tmp);
+                LOGMP("Increasing aggressively the step, from STEP %.20Rf", smart_step);
                 mpfr_mul(smart_step, smart_step, aggressive_factor, MPFR_RNDN);
+                LOGMP("to STEP %.20Rf", smart_step);
             }
         }
     }
@@ -81,7 +82,7 @@ static inline void smart_step(const mpfr_t z_prev,
     mpfr_clears(abs_prev, abs_cur, sgn, tmp, aggressive_factor, ts, ms, grow, mzr, (mpfr_ptr)0);
 }
 
-void y_confirmed(mpfr_t start_y)
+void from_y(mpfr_t start_y)
 {
     mpfr_set_default_prec(CFG().mpfr_prec);
 
@@ -135,13 +136,10 @@ void y_confirmed(mpfr_t start_y)
         mpfr_abs(z_cur, z_cur, MPFR_RNDN);
 
         // ---- per-step log (Z, N, step) ----
-        if (CFG().rs_main_log)
-        {
-            LOGMP("Scan: Z = %.50Rf t = %.30Rf STEP = %.10Rf", z_cur, t, step);
-            LOGMP_DEBUG("N = %.30Rf\n", N);
-        }
-        // -----------------------------------
+        LOGMP("Scan: Z = %.50Rf t = %.30Rf STEP = %.10Rf", z_cur, t, step);
+        LOGMP_DEBUG("N = %.30Rf\n", N);
 
+        // -----------------------------------
         if (mpfr_cmp(z_cur, z_prev) < 0)
         {
             smart_step(z_prev, z_cur, step);
@@ -152,7 +150,7 @@ void y_confirmed(mpfr_t start_y)
         else
         {
             // One “bounce” is your valley bottom
-            LOGMP("\n\n*** valley bottom, detected sign change, Mountain position going UP |Z| = %.20Rf t = %.20Rf\n", z_cur, t);
+            LOGMP("\n\n*** valley bottom, sign change detected, Mountain position going UP |Z| = %.20Rf t = %.20Rf\n", z_cur, t);
             // mpfr_printf("refine: N=%.0Rf, |Z|=%.12Rf, step=%.0Rf\n", N, z_cur, step);
 
             // optional: launch backward probe (non-blocking)

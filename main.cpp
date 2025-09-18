@@ -90,7 +90,7 @@ int main(int argc, char **argv)
     }
     else if (opt.mode == Options::Mode::ValleyScanner)
     {
-        y_confirmed(t);
+        from_y(t);
         get_best_t_so_far();
     }
     else if (opt.mode == Options::Mode::Z_ball)
@@ -144,14 +144,27 @@ int main(int argc, char **argv)
     {
 
         osvalley::OSConfig oc;
+        mpfr_t new_t_from_os, step_os;
 
+        mpfr_init2(new_t_from_os, 256);
+        mpfr_init2(step_os, 256); 
+        
         const osvalley::Real t0 = mpfr_to_long_double_safe(t, MPFR_RNDN);
         auto blk = osvalley::scan_valley_OS(t0, oc);
         auto ev = osquick::analyze_block(blk,
                                          /*absZ_tol=*/(osvalley::Real)0.0000001,
                                          /*ratio_tol=*/(osvalley::Real)0.1);
-
+        
         osquick::print_summary(ev);
+        
+        mpfr_set_ld(step_os, ev.suggested_step, MPFR_RNDN); 
+        
+        osvalley::Real t_new = t0 + ev.suggested_step;
+        std::cout << "t_refined OS=" << t_new << "\n";
+
+        mpfr_add(new_t_from_os, t, step_os, MPFR_RNDN);
+
+        mpfr_printf("t os = %.*Rf\n", 30, new_t_from_os);
 
         // // Simple policy for your valley scanner:
         // if (!ev.near)
