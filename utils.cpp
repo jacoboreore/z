@@ -66,8 +66,8 @@ void best_update(mpfr_srcptr Z, mpfr_srcptr t)
     if (mpfr_cmp(absZ, s.best_absZ) < 0)
     {
         LOGMP("(*) New better has been calculated t = %.*Rf  |Z| = %.*Rg",
-              24, t,
-              20, Z);
+              CFG().rs_log_digits, t,
+              CFG().rs_log_digits, Z);
 
         mpfr_set(s.best_absZ, absZ, MPFR_RNDN);
         mpfr_set(s.best_t, t, MPFR_RNDN);

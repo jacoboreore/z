@@ -34,7 +34,7 @@ inline void log_msg_internal(const char *file,
                              const std::string &msg,
                              int /*precision*/ = 15,
                              bool force_log = false,
-                             int type = 1)// 1 normal, 2 debug
+                             int type = 1) // 1 normal, 2 debug
 {
     if (!force_log)
     {
@@ -42,7 +42,7 @@ inline void log_msg_internal(const char *file,
         {
             return;
         }
-        
+
         if (type == 2 && !g_enable_log_debug)
         {
             return;

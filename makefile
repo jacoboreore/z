@@ -2,9 +2,16 @@
 
 CXX      = g++
 CXXFLAGS = -O2 -std=c++20 -MMD -MP -fopenmp
-LDFLAGS  = -pthread -fopenmp
+LDFLAGS  = -DOS_USE_MPFR -I/path/to/mpfrc++ -pthread -fopenmp
 
-# add pure headers here 
+# traces for issues, miscalculations, exceptions ####################################
+DBGFLAGS = -O1 -g -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS -D_FORTIFY_SOURCE=2 \
+           -Wall -Wextra -Wconversion -Wshadow -Wpedantic -Wfloat-equal
+
+SANFLAGS = -fsanitize=address, undefined
+######################################################################################
+
+# pure headers 
 LIBS     = -lmpc -lmpfr -lgmp -fopenmp
 
 SRC_DIR  = .
@@ -40,6 +47,10 @@ $(OBJ_DIR)/%.o: %.cpp | $(OBJ_DIR)
 
 $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $@
+
+debug: CXXFLAGS += $(DBGFLAGS) $(SANFLAGS) -std=c++20
+debug: LDFLAGS  += $(SANFLAGS)
+debug: all
 
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET)

@@ -138,11 +138,11 @@ bool parse_cli(int argc, char **argv, Options &out)
 
         return true;
     }
-    else if (mode == "os_valley")
+    else if (mode == "z_os")
     {
-        if (argc != 4)
+        if (argc != 3)
         {
-            std::cerr << "[error] valley_scanner Odlyzko/Schönhage requires 2 numbers: <t> <step>\n";
+            std::cerr << "[error] z_os Odlyzko/Schönhage requires 1 numbers: <t> <step>\n";
             print_usage(argv[0]);
             return false;
         }
@@ -153,15 +153,8 @@ bool parse_cli(int argc, char **argv, Options &out)
             return false;
         }
 
-        if (!mpfr_num_ok(argv[3]))
-        {
-            std::cerr << "[error] invalid number for step: " << argv[3] << "\n";
-            return false;
-        }
-
-        out.mode = Options::Mode::OS_valley;
+        out.mode = Options::Mode::z_OS;
         out.t_str = argv[2];
-        out.step_str = argv[3];
 
         return true;
     }
