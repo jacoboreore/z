@@ -97,15 +97,6 @@ inline long long OsLLRound(const T &x)
 }
 // ======= end precision shim =======
 
-// // ------- numerics backend (long double for stability at t>=1e14) -------
-// #ifndef OS_REAL_T
-// #define OS_REAL_T long double
-// #endif
-
-// #ifndef os_pi
-// #define os_pi 3.141592653589793238462643383279502884L
-// #endif
-
 namespace osvalley
 {
     using Real = OS_REAL_T;
@@ -114,7 +105,7 @@ namespace osvalley
     // ---------------------- config ----------------------
     struct OSConfig
     {
-        Real enable_min_t = CFG().enable_min_t;        // only use OS when t0 >= this
+        Real enable_min_t = CFG().enable_min_t;              // only use OS when t0 >= this
         int samples_per_spacing = CFG().samples_per_spacing; // Δt = spacing / S
         std::size_t K_points = CFG().K_points;               // points computed per block (≤ M)
         Real delta_log_max = CFG().delta_log_max;            // bin width in log n (smaller → more accurate)
@@ -175,7 +166,6 @@ namespace osvalley
         int i0{-1}, i1{-1};          // sample indices (start/end)
     };
 
-    
     // ---------------------- assemble F_k and Z_k ----------------------
     struct BlockResult
     {
@@ -191,7 +181,7 @@ namespace osvalley
         if (n <= 1)
             return 1;
         --n;
-        
+
         n |= n >> 1;
         n |= n >> 2;
         n |= n >> 4;
@@ -271,7 +261,8 @@ namespace osvalley
         Real Nf = OsSqrt(t / (os_two_pi<Real>()));
         if (Nf < 1)
             Nf = 1;
-        return (std::uint64_t)std::floor(Nf);
+        // return (std::uint64_t)std::floor(Nf);
+        return (std::uint64_t)OsFloor(Nf);
     }
 
     // local zero spacing ~ π / log(t/2π)
@@ -292,7 +283,7 @@ namespace osvalley
 
         // pick M so that Δlog = 2π / (M Δt) ≤ delta_log_max and M ≥ K
         const Real need = os_two_pi<Real>() / (P.dt * cfg.delta_log_max); // minimal M (before pow2)
-        std::size_t Mmin = (std::size_t)std::ceil(need);
+        std::size_t Mmin = (std::size_t)OsCeil(need);
         P.M = next_pow2(std::max<std::size_t>(P.K, Mmin));
         P.dlog = os_two_pi<Real>() / ((Real)P.M * P.dt);
 
@@ -419,12 +410,11 @@ namespace osvalley
         //             "[OS] t0=%.0Lf  N=%llu  M=%zu  R=%d  Δt=%.3Le  spacing≈%.3Le  Δlog=%.3Le  cover_log=%.3Le\n",
         //             t0, (unsigned long long)N, P.M, P.R, (long double)P.dt,
         //             (long double)spacing, (long double)P.dlog, (long double)cov_log);
-        
+
         return evaluate_block(P, cfg);
     }
 
-    
-    static inline int sgn(osvalley::Real x) { return (x > 0) - (x < 0); }
+    static inline int os_sgn(const osvalley::Real &x) { return (x > 0) - (x < 0); }
 
     OSRatioStep os_ratio_step_from_block(
         const osvalley::BlockResult &block,
@@ -452,10 +442,10 @@ namespace osvalley
 
         // central difference for dZ/dt
         const osvalley::Real g = (block.Z[i0 + 1] - block.Z[i0 - 1]) / (2 * dt);
-        const osvalley::Real g_abs = std::max(std::abs(g), g_floor);
+        const osvalley::Real g_abs = std::max(OsAbs(g), g_floor);
 
         // target step length for ratio R:  s = (1 - 1/R) * |Z0| / |g|
-        osvalley::Real s = (osvalley::Real(1) - osvalley::Real(1) / R_target) * std::abs(Z0) / g_abs;
+        osvalley::Real s = (osvalley::Real(1) - osvalley::Real(1) / R_target) * OsAbs(Z0) / g_abs;
 
         // clamp by spacing
         const osvalley::Real s_min = s_min_frac * spacing;
@@ -464,12 +454,12 @@ namespace osvalley
 
         // descent direction: we want d|Z|/dt * step < 0
         // First-order d|Z|/dt ≈ sign(Z0) * g  => choose step sign = -sign(Z0 * g)
-        int dir = -sgn(Z0 * g);
+        int dir = -os_sgn(Z0 * g);
         if (dir == 0)
-            dir = -sgn(Z0); // degenerate fallback
+            dir = -os_sgn(Z0); // degenerate fallback
 
         // walk along OS samples to locate flip before reaching s
-        int max_hops = (int)std::floor(std::abs(s / dt));
+        int max_hops = (int)OsFloor(OsAbs(s / dt));
         max_hops = std::max(max_hops, 1);
         int i = i0;
         bool flip = false;
@@ -500,8 +490,8 @@ namespace osvalley
         out.flip_ahead = flip;
 
         // observed ratio from OS samples
-        const osvalley::Real Z1abs = std::max(std::abs(out.Z1_pred), osvalley::Real(1e-30));
-        out.ratio = std::abs(Z0) / Z1abs;
+        const osvalley::Real Z1abs = std::max(OsAbs(out.Z1_pred), osvalley::Real(1e-30));
+        out.ratio = OsAbs(Z0) / Z1abs;
 
         // suggested Δt (signed)
         out.dt_suggest = (i - i0) * dt;
@@ -745,7 +735,7 @@ namespace osquick
         std::cout << "t_c=" << ev.t_center
                   << "\n|Zc|=" << ev.absZc
                   << "\ndZdt=" << ev.dZdt
-                  << "\ndt=" << ev.dt_pred
+                  << "\ndt_pred=" << ev.dt_pred
                   << "\nspacing=" << ev.spacing
                   << "\nratio=" << ev.ratio
                   << "\nmin|Z|=" << ev.min_absZ

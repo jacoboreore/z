@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     // load configuration, optional: file path relative to the executable conf/z.conf.
     // Defaults are in settings.h
     config_init("conf/z.conf");
-   
+
     // global availability for logs
     g_main_log = CFG().rs_main_log;
     g_enable_log_debug = CFG().rs_log_debug;
@@ -52,6 +52,13 @@ int main(int argc, char **argv)
     // MPC  runtime : (no mpc_get_version)
     // MPC  headers : 1.3.1
     api_version();
+
+#ifdef OS_USE_MPFR
+    mpfr::mpreal::set_default_prec(CFG().mpfr_prec);
+    LOGMPF("Precision OS backend = MPFR, prec=%u bits", (unsigned)mpfr::mpreal::get_default_prec());
+#else
+    LOGMPF("Precision OS backend = long double, digits 10=%d", std::numeric_limits<long double>::digits10);
+#endif
 
     // Initializing GLOBAL best_y since we will use threads, sometimes a refined t pops up during the calculations
     best_init(CFG().mpfr_prec);

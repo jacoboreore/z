@@ -1,23 +1,27 @@
 # Makefile for Z project
-
 CXX      = g++
-CXXFLAGS = -O2 -std=c++20 -MMD -MP -fopenmp
-LDFLAGS  = -DOS_USE_MPFR -I/path/to/mpfrc++ -pthread -fopenmp
+MPREAL_INC ?= mpreal
 
-# traces for issues, miscalculations, exceptions ####################################
+# --- compile/link flags ---
+# high preciosion OS, bad performance
+#CPPFLAGS += -DOS_USE_MPFR -DMPFR_USE_NO_MACRO -DMPFR_USE_INTMAX_T \
+#            -I$(MPREAL_INC) -include stdint.h
+# low  preciosion OS, good performance
+CPPFLAGS += -DMPFR_USE_NO_MACRO -DMPFR_USE_INTMAX_T \
+            -I$(MPREAL_INC) -include stdint.h
+CXXFLAGS += -O2 -std=c++20 -MMD -MP -fopenmp $(CPPFLAGS)
+LDFLAGS  += -pthread -fopenmp
+LIBS     += -lmpc -lmpfr -lgmp -fopenmp
+
+# Debug / tracing
 DBGFLAGS = -O1 -g -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS -D_FORTIFY_SOURCE=2 \
            -Wall -Wextra -Wconversion -Wshadow -Wpedantic -Wfloat-equal
-
-SANFLAGS = -fsanitize=address, undefined
-######################################################################################
-
-# pure headers 
-LIBS     = -lmpc -lmpfr -lgmp -fopenmp
+SANFLAGS = -fsanitize=address,undefined
 
 SRC_DIR  = .
 OBJ_DIR  = build
 BIN_DIR  = bin
-TARGET   = $(BIN_DIR)/z_calculator_thread
+TARGET   = $(BIN_DIR)/z
 
 SOURCES = \
   custom_y.cpp                \
@@ -37,23 +41,34 @@ SOURCES = \
 OBJECTS = $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 DEPS    = $(OBJECTS:.o=.d)
 
-all: $(TARGET)
+# ---- force rebuild when flags change (flags stamp) ----
+HASH_CMD ?= md5sum          # on MSYS2 this exists; if not, use: sha1sum
+FLAGS_ALL := $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+FLAGS_HASH := $(shell printf '%s' "$(FLAGS_ALL)" | $(HASH_CMD) | cut -d' ' -f1)
+FLAGS_STAMP := $(OBJ_DIR)/.flags-$(FLAGS_HASH)
+
+all: $(FLAGS_STAMP) $(TARGET)
+
+$(FLAGS_STAMP):
+	@mkdir -p $(OBJ_DIR)
+	@rm -f $(OBJ_DIR)/.flags-*
+	@touch $@
 
 $(TARGET): $(OBJECTS) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJECTS) $(LDFLAGS) $(LIBS)
+	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS) $(LIBS)
 
-$(OBJ_DIR)/%.o: %.cpp | $(OBJ_DIR)
+$(OBJ_DIR)/%.o: %.cpp $(FLAGS_STAMP) | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $@
 
-debug: CXXFLAGS += $(DBGFLAGS) $(SANFLAGS) -std=c++20
+debug: CXXFLAGS += $(DBGFLAGS) $(SANFLAGS)
 debug: LDFLAGS  += $(SANFLAGS)
 debug: all
 
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET)
 
-.PHONY: all clean
+.PHONY: all clean debug
 -include $(DEPS)

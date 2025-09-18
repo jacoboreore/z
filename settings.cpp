@@ -207,7 +207,7 @@ static void load_file(Config &cfg, const std::string &path)
 
     std::ifstream f;
 
-    std::cout << "\nConfig file: " << path << "\n";
+    std::cout << "\nConfig file: " << path << " \n";
 
     f.open(path);
     if (!f.is_open())
@@ -275,6 +275,8 @@ void print_config(const Config &c)
 {
     const int D = c.rs_log_digits > 0 ? c.rs_log_digits : 18;
 
+    LOGMP_DEBUG("\n");
+    
     log_kv("mpfr_prec", c.mpfr_prec);
 
     // --- prefilter ---

@@ -1,15 +1,12 @@
 #pragma once
 #include <cstdint>
 
-// ======= OS precision backend switch (long double ⇄ MPFR) =======
 #if defined(OS_USE_MPFR)
-#include <mpreal.h>
+#include "mpreal.h"
 #define OS_HAS_MPFR 1
 using OS_MPReal = mpfr::mpreal;
-// set a sane default; override from your settings before use
 inline void os_set_default_prec_bits(int bits) { mpfr::mpreal::set_default_prec(bits); }
 #else
-#define OS_HAS_MPFR 0
 using OS_MPReal = long double;
 inline void os_set_default_prec_bits(int) { /* no-op */ }
 #endif
@@ -24,7 +21,7 @@ using Real = OS_REAL_T;
 struct Config
 {
     int mpfr_prec = 250; // precision bits
-    
+
     double prefilter_tau_boost = 0.50;
     double prefilter_alpha = 0.50;
     double prefilter_tau = 0.30;
@@ -77,7 +74,6 @@ struct Config
     Real eps_abs = 1e-3L;         // absolute guard band for ‘trusted sign’
     Real eps_rel = 0.02L;         // relative guard band (fraction of median |Z|)
     Real flip_center_frac = 0.6L; // flip must be within ±0.6*spacing of center to auto-accept
-
 };
 
 // Initialize once (optional; CFG() will lazy‑init if you don’t call this)
