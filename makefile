@@ -1,4 +1,4 @@
-# Makefile for Z project
+# Z project
 CXX      = g++
 MPREAL_INC ?= mpreal
 
@@ -41,8 +41,8 @@ SOURCES = \
 OBJECTS = $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 DEPS    = $(OBJECTS:.o=.d)
 
-# ---- force rebuild when flags change (flags stamp) ----
-HASH_CMD ?= md5sum          # on MSYS2 this exists; if not, use: sha1sum
+# force rebuild when flags change 
+HASH_CMD ?= md5sum          # on MSYS2 this exists; if not, use: sha1sum, e.g docker
 FLAGS_ALL := $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 FLAGS_HASH := $(shell printf '%s' "$(FLAGS_ALL)" | $(HASH_CMD) | cut -d' ' -f1)
 FLAGS_STAMP := $(OBJ_DIR)/.flags-$(FLAGS_HASH)

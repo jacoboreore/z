@@ -11,13 +11,7 @@
 //
 // NOTE: This is line-searched Newton with 3/5-point symmetric derivatives.
 // It auto-chooses small-Z vs threaded depending on t.
-// bool newton_refine_root(
-//     mpfr_t t_out,
-//     const mpfr_t t0,
-//     double tol_abs,
-//     double tol_step,
-//     int max_iter,
-//     int use_threaded_z);
+
 
 #ifdef __cplusplus
 extern "C"

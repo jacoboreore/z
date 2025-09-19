@@ -4,7 +4,7 @@
 #include <cstring>
 #include <unordered_map>
 #include "refine_newton.h"
-#include "confirm_zero.h"        // est_spacing, use_threaded_for_t
+#include "confirm_zero.h"
 #include "z_calculator.h"
 #include "settings.h"
 #include "logs.h"
@@ -27,11 +27,11 @@ static inline void omp_diag(const char *tag)
 }
 #endif
 
-// Stable key for mpfr_t using full-precision hex mantissa+exponent.
+// Stable key for mpfr_t using full-precision hex mantissa + exponent.
 static inline std::string mpfr_key_hex(const mpfr_t x)
 {
     mpfr_exp_t exp;
-    char *s = mpfr_get_str(nullptr, &exp, 16, 0, x, MPFR_RNDN); // full precision
+    char *s = mpfr_get_str(nullptr, &exp, 16, 0, x, MPFR_RNDN);
     std::string key;
     key.reserve((s ? std::strlen(s) : 0) + 24);
     if (s)
@@ -44,7 +44,7 @@ static inline std::string mpfr_key_hex(const mpfr_t x)
     return key;
 }
 
-// Choose threaded or single Z safely (avoid nested OMP) and satisfy non-const signature.
+// Choose threaded or single Z safely (avoid nested OMP, overheading).
 static inline void compute_Z_dispatch(mpfr_t Z, const mpfr_t t, int use_threaded_z)
 {
     // Make a non-const local copy to match compute_Z / compute_Z_threaded signatures.
@@ -116,7 +116,7 @@ struct ZCache
     }
 };
 
-// --- helpers ---
+// helpers
 static inline int mpfr_sign(const mpfr_t x) { return mpfr_sgn(x); }
 static inline bool opposite_sign(const mpfr_t a, const mpfr_t b)
 {
@@ -709,7 +709,6 @@ bool newton_refine_root_thread(
         mpfr_set(Z_prev, Z, MPFR_RNDN);
         have_prev = true;
 
-        // Try your backtracking first (kept).
         if (!backtrack_step(t, Z, delta, use_threaded_z, cache))
         {
             // If we have a bracket, use a few Pegasus/Illinois steps to jump safely.
@@ -743,37 +742,3 @@ bool newton_refine_root_thread(
     mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
     return false;
 }
-
-// Test harness for large t
-// #ifdef TEST_NEWTON
-// #include <chrono>
-// int main() {
-//     mpfr_t t, t_out;
-//     mpfr_init2(t, CFG().mpfr_prec);
-//     mpfr_init2(t_out, CFG().mpfr_prec);
-//
-//     const char* test_t = "1000000000000.00001";
-//     mpfr_set_str(t, test_t, 10, MPFR_RNDN);
-//
-//     auto start = std::chrono::high_resolution_clock::now();
-//     bool found = newton_refine_root_thread(t_out, t, 1e-18, 1e-18, 20, CFG().use_threaded_z);
-//     auto end = std::chrono::high_resolution_clock::now();
-//     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-//
-//     mpfr_t Z_final;
-//     mpfr_init2(Z_final, CFG().mpfr_prec);
-//     compute_Z(Z_final, t_out);
-//     mpfr_t absZ;
-//     mpfr_init2(absZ, CFG().mpfr_prec);
-//     mpfr_abs(absZ, Z_final, MPFR_RNDN);
-//
-//     printf("Initial t: %s\n", test_t);
-//     mpfr_printf("Refined t: %.20Rg\n", t_out);
-//     mpfr_printf("Final |Z|: %.20Rg\n", absZ);
-//     printf("Converged: %s\n", found ? "true" : "false");
-//     printf("Time: %ld ms\n", duration.count());
-//
-//     mpfr_clears(t, t_out, Z_final, absZ, (mpfr_ptr)0);
-//     return 0;
-// }
-// #endif

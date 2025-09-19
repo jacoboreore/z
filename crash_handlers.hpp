@@ -2,7 +2,7 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>   // <-- for ::strsignal on POSIX
+#include <cstring>   
 
 #if defined(__unix__) || defined(__APPLE__)
   #include <execinfo.h>

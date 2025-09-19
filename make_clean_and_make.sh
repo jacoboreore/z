@@ -15,6 +15,7 @@ echo "09/16 Odlyzko–Schönhage implementation, valley walk adapatation (major 
 echo "09/17 Plaform precision adaptation for Odlyzko–Schönhage implementation, to maintain speed and 'long double' calculations"
 echo "09/17 Crashing handling, try catch handling"
 echo "09/17 Stable Odlyzko–Schönhage valley scanner algorithm merge, valley scanner using pure OS since RS-Gabcke is taxing.  Typos in comments"
+echo "09/18 Docker version, native compilation, CPUs as param (major adding), run.sh"
 
 echo "-------------------------------------------"
 

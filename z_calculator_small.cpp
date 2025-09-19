@@ -8,10 +8,10 @@
 // ------------------------------------------------------------
 // η(s) via binomial/Euler transform (stable)
 //   η(s) = sum_{m>=0} [ 1/2^{m+1} * sum_{k=0}^m (-1)^k C(m,k) (k+1)^{-s} ]
-// We precompute a[k] = (k+1)^{-s} using the stable recurrence
+// precompute a[k] = (k+1)^{-s} using the stable recurrence
 //   a_{k+1} = a_k * exp( -s * log1p(1/(k+1)) )
 // Then accumulate outer m until the m-term is < tol (after a few warmups).
-// M is interpreted as a *hard cap* (M_max). We also use a small M_min guard.
+// M is interpreted as a *hard cap* (M_max).
 // ------------------------------------------------------------
 static void zeta_via_eta(
     mpc_t zeta,

@@ -10,7 +10,7 @@
 
 // Global control flag
 inline bool g_main_log = true; // main logger
-inline bool g_enable_log_debug = true;
+inline bool g_enable_log_debug = true; // debug logger
 
 inline std::string current_timestamp()
 {

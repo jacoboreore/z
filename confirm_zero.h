@@ -1,8 +1,8 @@
 #pragma once
 #include <mpfr.h>
 #include "settings.h"
-#include "z_calculator.h"  // compute_Z_small(mpfr_t, const mpfr_t)
-#include "z_calculator_small.h"  // compute_Z_small(mpfr_t, const mpfr_t)
+#include "z_calculator.h"           
+#include "z_calculator_small.h"  
 
 
 // Estimate local spacing s ≈ π / log(t/2π)

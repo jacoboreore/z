@@ -1,4 +1,3 @@
-// utils.cpp
 #include "utils.h"
 #include "logs.h"
 #include "settings.h"

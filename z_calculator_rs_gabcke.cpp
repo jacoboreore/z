@@ -86,37 +86,55 @@ struct Spouge
     void build(int A, mpfr_prec_t P)
     {
         a = A;
+
+        // (1) Re-init c with the right precision
         for (auto &ci : c)
-            mpfr_clear(&ci); // in case build() called twice
+            mpfr_clear(&ci);
         c.clear();
         c.resize(a);
         for (int k = 0; k < a; ++k)
             mpfr_init2(&c[k], P);
-        mpfr_set(&c[0], sqrt2pi, MPFR_RNDN);
 
-        mpfr_t tmp1, tmp2, tmp3;
-        mpfr_inits2(P, tmp1, tmp2, tmp3, (mpfr_ptr)0);
+        // (2) c0 = sqrt(2π) at precision P
+        mpfr_t c0;
+        mpfr_init2(c0, P);
+        mpfr_const_pi(c0, MPFR_RNDN);
+        mpfr_mul_ui(c0, c0, 2, MPFR_RNDN);
+        mpfr_sqrt(c0, c0, MPFR_RNDN);
+        mpfr_set(&c[0], c0, MPFR_RNDN);
+        mpfr_clear(c0);
 
-        for (int k = 1; k < a; ++k)
+// (3) Parallelize the independent coefficients
+#pragma omp parallel
         {
-            int sgn = (k % 2 == 1) ? +1 : -1;
+            mpfr_t t1, t2, t3;
+            mpfr_inits2(P, t1, t2, t3, (mpfr_ptr)0);
 
-            mpfr_set_si(tmp1, a - k, MPFR_RNDN); // (a-k)
-            mpfr_set_si(tmp2, k, MPFR_RNDN);
-            mpfr_sub_d(tmp2, tmp2, 0.5, MPFR_RNDN); // k - 1/2
-            mpfr_pow(tmp1, tmp1, tmp2, MPFR_RNDN);  // (a-k)^(k-1/2)
+#pragma omp for
+            for (int k = 1; k < a; ++k)
+            {
+                // t1 ← (a-k)^(k-1/2) * e^(a-k) * sign
+                int sgn = (k & 1) ? +1 : -1;
 
-            mpfr_set_si(tmp2, a - k, MPFR_RNDN);
-            mpfr_exp(tmp2, tmp2, MPFR_RNDN);       // e^(a-k)
-            mpfr_mul(tmp1, tmp1, tmp2, MPFR_RNDN); // *
+                mpfr_set_si(t1, a - k, MPFR_RNDN); // (a-k)
+                mpfr_set_si(t2, k, MPFR_RNDN);
+                mpfr_sub_d(t2, t2, 0.5, MPFR_RNDN); // (k - 1/2)
+                mpfr_pow(t1, t1, t2, MPFR_RNDN);    // (a-k)^(k-1/2)
 
-            if (sgn < 0)
-                mpfr_neg(tmp1, tmp1, MPFR_RNDN);
+                mpfr_set_si(t2, a - k, MPFR_RNDN);
+                mpfr_exp(t2, t2, MPFR_RNDN); // e^(a-k)
+                mpfr_mul(t1, t1, t2, MPFR_RNDN);
 
-            mpfr_fac_ui(tmp2, k - 1, MPFR_RNDN);    // (k-1)!
-            mpfr_div(&c[k], tmp1, tmp2, MPFR_RNDN); // <- address!
+                if (sgn < 0)
+                    mpfr_neg(t1, t1, MPFR_RNDN);
+
+                // divide by (k-1)!
+                mpfr_fac_ui(t2, (unsigned long)(k - 1), MPFR_RNDN);
+                mpfr_div(&c[k], t1, t2, MPFR_RNDN);
+            }
+
+            mpfr_clears(t1, t2, t3, (mpfr_ptr)0);
         }
-        mpfr_clears(tmp1, tmp2, tmp3, (mpfr_ptr)0);
     }
 };
 

@@ -11,7 +11,6 @@ using OS_MPReal = long double;
 inline void os_set_default_prec_bits(int) { /* no-op */ }
 #endif
 
-// ---- pick Real type (keeps your OS_REAL_T override working) ----
 #ifndef OS_REAL_T
 #define OS_REAL_T OS_MPReal
 #endif
@@ -76,13 +75,12 @@ struct Config
     Real flip_center_frac = 0.6L; // flip must be within ±0.6*spacing of center to auto-accept
 };
 
-// Initialize once (optional; CFG() will lazy‑init if you don’t call this)
+// Initialize once
 void config_init(const char *path = nullptr);
 
 // Get the global config (thread‑safe, lazy‑initialized once)
 const Config &CFG();
 
-// Optional: reload config (e.g., after editing file/env)
 void config_reload(const char *path = nullptr);
 
 void api_version();

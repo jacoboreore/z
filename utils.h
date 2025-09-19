@@ -4,7 +4,7 @@
 #include <sstream>
 #include <mutex>
 
-// --- Best-zero global state (singleton) ---
+// Best-zero global state (singleton pattern) 
 struct BestZeroState {
     mpfr_t best_absZ;   // |Z| of the best-so-far
     mpfr_t best_t;      // corresponding t
@@ -13,11 +13,11 @@ struct BestZeroState {
     BestZeroState() : P(0), initialized(false) {}
 };
 
-BestZeroState& best_state();           // access singleton
-void best_init(mpfr_prec_t P);         // call once at startup (or when precision changes)
-void best_reset();                     // set |Z|=9'999'999 and t=0
-void best_update(mpfr_srcptr Z, mpfr_srcptr t); // compare |Z| and update if better
-void best_get(mpfr_t out_t, mpfr_t out_absZ);   // copy out a snapshot (thread-safe)
+BestZeroState& best_state();                        // access singleton
+void best_init(mpfr_prec_t P);                      // call once at startup (or when precision changes)
+void best_reset();                                  // set |Z|=9'999'999 and t=0
+void best_update(mpfr_srcptr Z, mpfr_srcptr t);     // compare |Z| and update if better
+void best_get(mpfr_t out_t, mpfr_t out_absZ);       // copy out a snapshot (thread-safe)
 
 inline std::string mpfr_to_string(mpfr_srcptr x, int digits, char mode = 'g')
 {

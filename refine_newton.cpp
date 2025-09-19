@@ -2,10 +2,8 @@
 #include <algorithm>
 #include <sstream>
 #include "refine_newton.h"
-#include "confirm_zero.h" // est_spacing, use_threaded_for_t
-// #include "z_calculator_small.h"   // compute_Z_small(...)
+#include "confirm_zero.h" 
 #include "z_calculator.h"
-// #include "z_calculator_rs_gabcke.h"
 #include "settings.h"
 #include "logs.h"
 #include "utils.h"
@@ -14,7 +12,7 @@
 #include <omp.h>
 #endif
 
-/* ==================== helpers ==================== */
+// helpers
 
 static inline int mpfr_sign(const mpfr_t x) { return mpfr_sgn(x); }
 static inline bool opposite_sign(const mpfr_t a, const mpfr_t b)
@@ -292,7 +290,6 @@ static inline bool descent_nudge(mpfr_t t, int use_threaded_z)
 }
 
 /* ==================== Newton driver ==================== */
-
 bool newton_refine_root(
     mpfr_t t_out,
     const mpfr_t t0,

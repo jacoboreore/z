@@ -10,12 +10,11 @@
 
 #include "cli.h"
 #include "settings.h"
-#include "z_calculator.h" // compute_Z(...), rs_N_for_log(...), est_spacing(...)
+#include "z_calculator.h" 
 #include "z_calculator_rs_gabcke.h"
-#include "z_ball.h" // ZBallV, zballv_init/clear, compute_Z_ball_verbose, zballv_contains_zero
+#include "z_ball.h" 
 #include "refine_newton.h"
-#include "refine_newton thread.h" // newton_refine_root(...)
-// #include "confirm_zero.h"  // confirm_zero_like(...)
+#include "refine_newton thread.h"
 #include "z_walk.h"
 #include "logs.h"
 #include "utils.h"
@@ -30,7 +29,7 @@ int main(int argc, char **argv)
     if (!parse_cli(argc, argv, opt))
         return 80;
 
-    // load configuration, optional: file path relative to the executable conf/z.conf.
+    // load configuration, optional: relative path conf/z.conf.
     // Defaults are in settings.h
     config_init("conf/z.conf");
 
@@ -43,8 +42,7 @@ int main(int argc, char **argv)
 
     // print API version, MPFR, MPC, GMP
     // Current version as for 07/01/2025
-    // Use these versions to avoid miscalculations or function crashing
-
+    
     // MPFR runtime : 4.2.2
     // MPFR headers : 4.2.2
     // GMP  runtime : 6.3.0
@@ -60,7 +58,7 @@ int main(int argc, char **argv)
     LOGMPF("Precision OS backend = long double, digits 10=%d", std::numeric_limits<long double>::digits10);
 #endif
 
-    // Initializing GLOBAL best_y since we will use threads, sometimes a refined t pops up during the calculations
+    // Initializing GLOBAL t since we will use threads, sometimes a refined t pops up during the calculations
     best_init(CFG().mpfr_prec);
 
     // Odlyzko–Schönhage ad-hoc calculations precision.

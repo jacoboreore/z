@@ -33,7 +33,6 @@ static inline void rounding_radius(mpfr_t out, long N, double k = 4.0)
     mpfr_clears(sN, ulp, kk, (mpfr_ptr)0);
 }
 
-// z_ball.cpp (replace your theta_radius)
 static inline void theta_radius(mpfr_t out, const mpfr_t t)
 {
     const mpfr_prec_t P = CFG().mpfr_prec;
@@ -84,10 +83,6 @@ void compute_Z_ball_verbose(ZBallV &B, const mpfr_t t)
     // components
     remainder_bound(B.rad_R, t);
     rounding_radius(B.rad_round, rs_N(t), /*k=*/4.0);
-
-    // If you have compute_theta_extended implemented, uncomment:
-    // theta_radius(B.rad_theta, t);
-    // else keep it at 0.
 
     // total radius
     mpfr_set(B.rad_tot, B.rad_R, MPFR_RNDN);

@@ -64,11 +64,11 @@ static inline void log_kv(const char *key, const T &value, int digits = 18)
     LOGMP_DEBUG("%-26s = %s", key, sval.c_str());
 }
 
-static Config g_cfg;          // the single global instance
+static Config g_cfg;          // single global instance
 static std::once_flag g_once; // guards one-time init
 static std::mutex g_mutex;    // guards reload
 
-// ---------- helpers ----------
+// helpers 
 static inline std::string trim(std::string s)
 {
     auto issp = [](unsigned char c)
@@ -270,7 +270,6 @@ static void load_from_paths(Config &cfg, const char *path)
     load_file(cfg, path);
 }
 
-// ---------- public API ----------
 void print_config(const Config &c)
 {
     const int D = c.rs_log_digits > 0 ? c.rs_log_digits : 18;
