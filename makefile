@@ -9,7 +9,7 @@ MPREAL_INC ?= mpreal
 # low  preciosion OS, good performance
 CPPFLAGS += -DMPFR_USE_NO_MACRO -DMPFR_USE_INTMAX_T \
             -I$(MPREAL_INC) -include stdint.h
-CXXFLAGS += -O2 -std=c++20 -MMD -MP -fopenmp $(CPPFLAGS)
+CXXFLAGS += -O3 -march=native -mtune=native -std=c++20 -MMD -MP -fopenmp $(CPPFLAGS)
 LDFLAGS  += -pthread -fopenmp
 LIBS     += -lmpc -lmpfr -lgmp -fopenmp
 

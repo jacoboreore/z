@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends                
     git ca-certificates curl                                                    \
  && rm -rf /var/lib/apt/lists/*
 
-# Bring in mpfrc++ (mpreal.h).  Option A: fetch
+# mpfrc++ (mpreal.h).
 WORKDIR /opt
 RUN git clone --depth=1 https://github.com/advanpix/mpreal.git mpfrcpp
 ENV MPREAL_INC=/opt/mpfrcpp
@@ -67,4 +67,6 @@ ENTRYPOINT ["/bin/bash"]
 ############################
 # Executing build
 ############################
-# docker build -t z:native --build-arg NATIVE=1 .
+# docker build -t jor_z:native --build-arg NATIVE=1 .
+# docker tag jor_z:native jacobore/jor_z:native
+# 
