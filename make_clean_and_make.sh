@@ -16,6 +16,10 @@ echo "09/17 Plaform precision adaptation for Odlyzko–Schönhage implementation
 echo "09/17 Crashing handling, try catch handling"
 echo "09/17 Stable Odlyzko–Schönhage valley scanner algorithm merge, valley scanner using pure OS since RS-Gabcke is taxing.  Typos in comments"
 echo "09/18 Docker version, native compilation, CPUs as param (major adding), run.sh"
+echo "09/21 Birthday :D"
+echo "09/22 Q&A, bad spacing calcs, refining valley walking"
+echo "09/25 Q&A, walking through valleys, stable, some zeros are not beign calculated"
+echo "09/26 Q&A, fixes"
 
 echo "-------------------------------------------"
 

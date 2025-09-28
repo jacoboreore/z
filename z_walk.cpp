@@ -11,6 +11,8 @@
 #include "logs.h"
 #include "confirm_zero.h"
 #include "utils.h"
+#include "refine_newton.h"
+#include "refine_newton_thread.h"
 
 std::mutex print_mutex;
 
@@ -40,10 +42,10 @@ static inline void smart_step(const mpfr_t z_prev,
     mpfr_set_d(mzr, max_Zs_relation, MPFR_RNDN);
 
     // Evaluating current z, if z > 0.1 (conf), we increase the step aggressively
-    // z is far from zero, tolerance 0.1
+    // |Z| is too far from a zero
     if (mpfr_cmp(ts, abs_cur) < 0)
     {
-        LOGMP_DEBUG("Applying aggressive step, |Z| is too far from zero");
+        LOGMP("Applying aggressive step, |Z| is too far from zero");
         if (mpfr_cmp(ms, smart_step) > 0)
             mpfr_mul(smart_step, smart_step, aggressive_factor, MPFR_RNDN);
     }
@@ -51,7 +53,7 @@ static inline void smart_step(const mpfr_t z_prev,
     {
         if (!soft_landing)
         {
-            LOGMP_DEBUG("------> Reseting to smart step for a soft landing...");
+            LOGMP("------> Reseting to smart step for a soft landing...");
             if (mpfr_sgn(smart_step) < 0)
             {
                 mpfr_set(smart_step, grow, MPFR_RNDN);
@@ -149,17 +151,360 @@ void from_y(mpfr_t start_y)
         }
         else
         {
-            // One “bounce” is your valley bottom
+            // bounce
             LOGMP("\n\n*** valley bottom, sign change detected, Mountain position going UP |Z| = %.20Rf t = %.20Rf\n", z_cur, t);
-            // mpfr_printf("refine: N=%.0Rf, |Z|=%.12Rf, step=%.0Rf\n", N, z_cur, step);
 
-            // optional: launch backward probe (non-blocking)
-            // uint64_t N0 = (uint64_t)std::llround(mpfr_get_d(N, MPFR_RNDN));
-            // std::thread(backward_search_uj, N0, CFG().mpfr_prec, 200000ULL, 20000ULL).detach();
-            // precision_landing_from_best();
             break;
         }
     }
 
     mpfr_clears(N, N_test, z_prev, z_cur, step, grow, t, (mpfr_ptr)0);
+}
+
+void from_y_walk(mpfr_t start_y)
+{
+    mpfr_set_default_prec(CFG().mpfr_prec);
+    const int max_iters = 100; // killer switch
+    int iter = 0;
+    double newton_tol_step = CFG().newton_tol_step;
+
+    LOGMP("Process y walk initial params\n---> start_y %.12Rf\n\n", start_y);
+
+    // the we will calculate from the start_y
+    for (double count_valley_from_y_walk = 0; count_valley_from_y_walk < CFG().valley_from_y_walk; count_valley_from_y_walk++)
+    {
+        mpfr_t N, N_test, z_prev, z_cur, step, grow, t, y_next, t_star, t_prev;
+        mpfr_inits2(CFG().mpfr_prec, N, N_test, z_prev, z_cur, step, grow, t, y_next, t_star, t_prev, (mpfr_ptr)0);
+
+        // next y by spacing, the spacing formula is skipping zeros
+        // tested Odlyzco DB
+        //      (103793332903, mpf('30607946001.0414392944755272329218235304200151'))
+        //      (103793332904, mpf('30607946001.17507333178113001164219442100034168'))   <------ skipped
+        calculate_next_y_from_spacing(y_next, start_y);
+
+        mpfr_set(start_y, y_next, MPFR_RNDN);
+
+        LOGMP("\n\n--------------------------------\n--------Starting cycle----------\n--------------------------------\n");
+        LOGMP("Next y = %.12Rf\n\n", start_y);
+
+        for (double count_valley_insistence = 0; count_valley_insistence < CFG().valley_insistence; count_valley_insistence++)
+        {
+            iter = 0; // killer switch
+
+            // |Z| at next y
+            compute_Z(z_prev, start_y);
+            mpfr_abs(z_prev, z_prev, MPFR_RNDN);
+            LOGMP("|Z| at start: %.20Rf", z_prev);
+
+            mpfr_set_d(grow, CFG().valley_grow, MPFR_RNDN);
+
+            compute_N_from_y(N, start_y);
+            LOGMP("N from strting y: %.20Rf\n", N);
+
+            mpfr_add(N_test, N, grow, MPFR_RNDN);
+            LOGMP("N+1: %.20Rf (grow: %.20Rf)", N_test, grow);
+
+            compute_y_from_N(t, N_test);
+            compute_Z(z_cur, t);
+            mpfr_abs(z_cur, z_cur, MPFR_RNDN);
+
+            LOGMP("|Z| at N+1: %.20Rf", z_cur);
+
+            // choose direction: go where |Z| is smaller
+            bool go_down = (mpfr_cmp(z_cur, z_prev) < 0);
+
+            // FIX: going UP to the mountain result in an already calculated zero
+            // if (!go_down)
+            // {
+            //     LOGMP("\n\n Climbing the mountain, we need to go down...\n ");
+            //     mpfr_set_d(step, CFG().valley_grow, MPFR_RNDN);
+            //     do
+            //     {
+            //         mpfr_add(N, N, step, MPFR_RNDN);
+            //         compute_y_from_N(t, N);
+            //         compute_Z(z_cur, t);
+            //         mpfr_abs(z_cur, z_cur, MPFR_RNDN);
+
+            //         if (mpfr_cmp(z_cur, z_prev) > 0)
+            //         {
+            //             smart_step(z_prev, z_cur, step);
+            //             mpfr_set(z_prev, z_cur, MPFR_RNDN);
+            //         }
+
+            //         go_down = (mpfr_cmp(z_cur, z_prev) < 0);
+            //     } while (!go_down && iter++ < max_iters);
+
+            //     LOGMP("\n\nNow going down...");
+            // }
+
+            // initial step: ±1 in the chosen direction
+            mpfr_set_d(step, go_down ? CFG().valley_grow : -1 * CFG().valley_grow, MPFR_RNDN);
+
+            LOGMP("\n\n****** Initial direction: %s ******\n", go_down ? "DOWN" : "UP");
+
+            iter = 0; // killer switch
+            while (iter++ < max_iters)
+            {
+                // move N by 'step'
+                mpfr_add(N, N, step, MPFR_RNDN);
+
+                // store last t
+                mpfr_set(t_prev, t, MPFR_RNDN);
+
+                // evaluate |Z| at new N
+                compute_y_from_N(t, N);
+                compute_Z(z_cur, t);
+                mpfr_abs(z_cur, z_cur, MPFR_RNDN);
+
+                // per-step log (Z, N, step)
+                LOGMP("Scan: Z = %.50Rf t = %.30Rf STEP = %.10Rf", z_cur, t, step);
+                LOGMP_DEBUG("N = %.30Rf\n", N);
+
+                // -----------------------------------
+                if (mpfr_cmp(z_cur, z_prev) < 0)
+                {
+                    // keep walking to the valley
+                    smart_step(z_prev, z_cur, step);
+                    mpfr_set(z_prev, z_cur, MPFR_RNDN);
+
+                    continue;
+                }
+                else
+                {
+                    // Bounce
+                    LOGMP("\n\n*** valley bottom, sign change detected, Mountain position going UP |Z| = %.20Rf t = %.20Rf\n", z_cur, t);
+                    LOGMP("refining t = %.20Rf...", t_prev);
+
+                    if (CFG().use_threaded_newton)
+                    {
+                        LOGMP("Using parallelized Newton...");
+                        newton_refine_root_thread(
+                            t_star,
+                            t_prev,
+                            CFG().newton_tol_abs,
+                            CFG().newton_tol_step,
+                            CFG().newton_max_iter,
+                            CFG().use_threaded_z ? 1 : 0);
+                    }
+                    else
+                    {
+                        LOGMP("Using Single thread Newton...");
+                        newton_refine_root(
+                            t_star,
+                            t_prev,
+                            CFG().newton_tol_abs,
+                            CFG().newton_tol_step,
+                            CFG().newton_max_iter,
+                            CFG().use_threaded_z ? 1 : 0);
+                    }
+
+                    // set the refine t to the start_y for either, another pass or find the next t
+                    mpfr_set(start_y, t_star, MPFR_RNDN);
+                    mpfr_set(t, t_star, MPFR_RNDN);
+
+                    break;
+                }
+            }
+
+            // if we attained a good zero, we don't need to pass again here
+            mpfr_t newton_tol_step, z_from_bounce;
+            mpfr_inits2(CFG().mpfr_prec, newton_tol_step, z_from_bounce, (mpfr_ptr)0);
+            mpfr_set_d(newton_tol_step, CFG().newton_tol_abs, MPFR_RNDN);
+
+            compute_Z(z_from_bounce, start_y);
+            mpfr_abs(z_from_bounce, z_from_bounce, MPFR_RNDN);
+
+            LOGMPF("====================> LOG Refined t = %.*Rg |Z| = %.*Rg",
+                   CFG().rs_log_digits,
+                   start_y,
+                   CFG().rs_log_digits,
+                   z_from_bounce);
+
+            if (mpfr_cmp(newton_tol_step, z_from_bounce) < 0)
+            {
+                LOGMP("No need to pass the valley scanner again...");
+                count_valley_insistence = CFG().valley_insistence + 1; // force exiting
+            }
+            else
+            {
+                LOGMP("Passing the valley scanner again...");
+            }
+            mpfr_clears(newton_tol_step, z_from_bounce, (mpfr_ptr)0);
+        }
+
+        mpfr_clears(N, N_test, z_prev, z_cur, step, grow, t, y_next, t_star, t_prev, (mpfr_ptr)0);
+    }
+}
+
+void from_y_walk_pure_valley_walk(mpfr_t start_y)
+{
+    mpfr_set_default_prec(CFG().mpfr_prec);
+    const int max_iters = 100000; // killer switch
+    int iter = 0;
+    double newton_tol_step = CFG().newton_tol_step;
+
+    LOGMP("Process y walk initial params\n---> start_y %.12Rf\n\n", start_y);
+
+    // the we will calculate from the start_y
+    for (double count_valley_from_y_walk = 0; count_valley_from_y_walk < CFG().valley_from_y_walk; count_valley_from_y_walk++)
+    {
+        // no overhead here, just restarting everything
+        mpfr_t N, N_test, z_prev, z_cur, step, grow, t, t_refined, t_prev;
+        mpfr_inits2(CFG().mpfr_prec, N, N_test, z_prev, z_cur, step, grow, t, t_refined, t_prev, (mpfr_ptr)0);
+
+        LOGMP("\n\n--------------------------------\n--------Starting cycle----------\n--------------------------------\n");
+        LOGMP("Next y = %.12Rf\n\n", start_y);
+
+        for (double count_valley_insistence = 0; count_valley_insistence < CFG().valley_insistence; count_valley_insistence++)
+        {
+            iter = 0; // killer switch
+
+            // |Z| at next y
+            compute_Z(z_prev, start_y);
+            mpfr_abs(z_prev, z_prev, MPFR_RNDN);
+            LOGMP("|Z| at start: %.20Rf", z_prev);
+
+            mpfr_set_d(grow, CFG().valley_grow, MPFR_RNDN);
+
+            compute_N_from_y(N, start_y);
+            LOGMP("N from strting y: %.20Rf\n", N);
+
+            mpfr_add(N_test, N, grow, MPFR_RNDN);
+            LOGMP("N+1: %.20Rf (grow: %.20Rf)", N_test, grow);
+
+            compute_y_from_N(t, N_test);
+            compute_Z(z_cur, t);
+            mpfr_abs(z_cur, z_cur, MPFR_RNDN);
+
+            LOGMP("|Z| at N+1: %.20Rf", z_cur);
+
+            // choose direction: go where |Z| is smaller
+            bool go_down = (mpfr_cmp(z_cur, z_prev) < 0);
+
+            if (!go_down)
+            {
+                LOGMP("\n\n Climbing the mountain, we need to go down...\n ");
+                mpfr_set_d(step, CFG().valley_grow, MPFR_RNDN);
+                do
+                {
+                    mpfr_add(N, N, step, MPFR_RNDN);
+                    compute_y_from_N(t, N);
+                    compute_Z(z_cur, t);
+                    mpfr_abs(z_cur, z_cur, MPFR_RNDN);
+
+                    if (mpfr_cmp(z_cur, z_prev) > 0)
+                    {
+                        smart_step(z_prev, z_cur, step);
+                        mpfr_set(z_prev, z_cur, MPFR_RNDN);
+                    }
+
+                    go_down = (mpfr_cmp(z_cur, z_prev) < 0);
+                } while (!go_down && iter++ < max_iters);
+
+                LOGMP("\n\nNow going down...");
+            }
+
+            // initial step: ±1 in the chosen direction
+            mpfr_set_d(step, go_down ? CFG().valley_grow : -1 * CFG().valley_grow, MPFR_RNDN);
+
+            // LOGMP("\n\n****** Initial direction: %s ******\n", go_down ? "DOWN" : "UP");
+
+            iter = 0; // killer switch
+            while (iter++ < max_iters)
+            {
+                // move N by 'step'
+                mpfr_add(N, N, step, MPFR_RNDN);
+
+                // store last t
+                mpfr_set(t_prev, t, MPFR_RNDN);
+
+                // evaluate |Z| at new N
+                compute_y_from_N(t, N);
+                compute_Z(z_cur, t);
+                mpfr_abs(z_cur, z_cur, MPFR_RNDN);
+
+                // per-step log (Z, N, step)
+                LOGMP("Scan: Z = %.50Rf t = %.30Rf STEP = %.10Rf", z_cur, t, step);
+                LOGMP("N = %.30Rf\n", N);
+
+                // -----------------------------------
+                if (mpfr_cmp(z_cur, z_prev) < 0)
+                {
+                    // keep walking to the valley
+                    if (iter % 5 == 0)
+                    {
+                        smart_step(z_prev, z_cur, step);
+                    }
+                    mpfr_set(z_prev, z_cur, MPFR_RNDN);
+
+                    continue;
+                }
+                else
+                {
+                    // Bounce
+                    LOGMP("\n\n*** valley bottom, sign change detected, Mountain position going UP |Z| = %.20Rf t = %.20Rf\n", z_cur, t);
+                    LOGMP("refining t = %.20Rf...", t_prev);
+
+                    if (CFG().use_threaded_newton)
+                    {
+                        LOGMP("Using parallelized Newton...");
+                        newton_refine_root_thread(
+                            t_refined,
+                            t_prev,
+                            CFG().newton_tol_abs,
+                            CFG().newton_tol_step,
+                            CFG().newton_max_iter,
+                            CFG().use_threaded_z ? 1 : 0);
+                    }
+                    else
+                    {
+                        LOGMP("Using Single thread Newton...");
+                        newton_refine_root(
+                            t_refined,
+                            t_prev,
+                            CFG().newton_tol_abs,
+                            CFG().newton_tol_step,
+                            CFG().newton_max_iter,
+                            CFG().use_threaded_z ? 1 : 0);
+                    }
+
+                    // set the refine t to the start_y for either, another pass or find the next t
+                    mpfr_set(start_y, t_refined, MPFR_RNDN);
+
+                    break;
+                }
+            }
+
+            // if we attained a good zero, we don't need to pass again here
+            mpfr_t newton_tol_abs, z_from_bounce;
+            mpfr_inits2(CFG().mpfr_prec, newton_tol_abs, z_from_bounce, (mpfr_ptr)0);
+            mpfr_set_d(newton_tol_abs, CFG().newton_tol_abs, MPFR_RNDN);
+
+            compute_Z(z_from_bounce, start_y);
+            mpfr_abs(z_from_bounce, z_from_bounce, MPFR_RNDN);
+
+            LOGMPF("====================> LOG Refined t = %.*Rg |Z| = %.*Rg",
+                   CFG().rs_log_digits,
+                   start_y,
+                   CFG().rs_log_digits,
+                   z_from_bounce);
+
+            if (mpfr_cmp(newton_tol_abs, z_from_bounce) > 0)
+            {
+                LOGMP("No need to pass the valley scanner again...");
+                count_valley_insistence = CFG().valley_insistence + 1; // force exiting, we need to clean the mem afew lines below
+            }
+            else
+            {
+                LOGMP("Passing the valley scanner again...");
+            }
+
+            mpfr_clears(newton_tol_abs, z_from_bounce, (mpfr_ptr)0);
+        }
+
+        // no other attempts to refine, so we reposition the start_y again into the mountain, climbing, to locate another zero...
+        mpfr_set(start_y, t, MPFR_RNDN);
+
+        mpfr_clears(N, N_test, z_prev, z_cur, step, grow, t, t_refined, t_prev, (mpfr_ptr)0);
+    }
 }

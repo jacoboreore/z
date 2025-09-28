@@ -68,7 +68,7 @@ static Config g_cfg;          // single global instance
 static std::once_flag g_once; // guards one-time init
 static std::mutex g_mutex;    // guards reload
 
-// helpers 
+// helpers
 static inline std::string trim(std::string s)
 {
     auto issp = [](unsigned char c)
@@ -173,6 +173,10 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.valley_max_step = std::stod(v);
     else if (ieq(k, "valley_max_Zs_relation"))
         c.valley_max_Zs_relation = std::stod(v);
+    else if (ieq(k, "valley_insistence"))
+        c.valley_insistence = std::stod(v);
+    else if (ieq(k, "valley_from_y_walk"))
+        c.valley_from_y_walk = std::stod(v);
 
     else if (ieq(k, "enable_min_t"))
         c.enable_min_t = std::stold(v);
@@ -326,6 +330,8 @@ void print_config(const Config &c)
     log_kv("valley_aggressive_factor", c.valley_aggressive_factor, D);
     log_kv("valley_max_step", c.valley_max_step, D);
     log_kv("valley_max_Zs_relation", c.valley_max_Zs_relation, D);
+    log_kv("valley_insistence", c.valley_insistence, D);
+
     LOGMP_DEBUG("\n");
 
     // --- OS / Odlyzko–Schönhage ---

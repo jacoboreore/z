@@ -14,7 +14,7 @@
 #include "z_calculator_rs_gabcke.h"
 #include "z_ball.h" 
 #include "refine_newton.h"
-#include "refine_newton thread.h"
+#include "refine_newton_thread.h"
 #include "z_walk.h"
 #include "logs.h"
 #include "utils.h"
@@ -86,9 +86,14 @@ int main(int argc, char **argv)
         compute_Z(Z, t);
         mpfr_clear(Z);
     }
-    else if (opt.mode == Options::Mode::ValleyScanner)
+    else if (opt.mode == Options::Mode::Valley_Scanner)
     {
         from_y(t);
+        get_best_t_so_far();
+    }
+    else if (opt.mode == Options::Mode::Valley_Walk)
+    {
+        from_y_walk_pure_valley_walk(t);
         get_best_t_so_far();
     }
     else if (opt.mode == Options::Mode::Z_ball)
@@ -138,7 +143,7 @@ int main(int argc, char **argv)
 
         mpfr_clear(t_star);
     }
-    else if (opt.mode == Options::Mode::z_OS)
+    else if (opt.mode == Options::Mode::Z_OS)
     {
 
         osvalley::OSConfig oc;

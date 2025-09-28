@@ -57,6 +57,8 @@ struct Config
     double valley_tolerance_to_step = 1;
     double valley_max_step = 1e10;
     double valley_max_Zs_relation = 2;
+    double valley_insistence = 3;
+    double valley_from_y_walk = 10;
 
     Real enable_min_t = 1e14L;    // only use OS when t0 >= this
     int samples_per_spacing = 8;  // Δt = spacing / S

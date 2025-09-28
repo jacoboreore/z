@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <sstream>
 #include "refine_newton.h"
-#include "confirm_zero.h" 
+#include "confirm_zero.h"
 #include "z_calculator.h"
 #include "settings.h"
 #include "logs.h"
@@ -353,11 +353,13 @@ bool newton_refine_root(
         mpfr_abs(absZ, Z, MPFR_RNDN);
         const double absZ_d = mpfr_get_d(absZ, MPFR_RNDN);
         mpfr_clear(absZ);
+
         if (absZ_d <= tol_abs)
         {
             mpfr_set(t_out, t, MPFR_RNDN);
             mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
             mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+
             return true;
         }
 
@@ -431,6 +433,7 @@ bool newton_refine_root(
             mpfr_set(t_out, t, MPFR_RNDN);
             mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
             mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+
             return true;
         }
 
@@ -469,5 +472,6 @@ bool newton_refine_root(
     mpfr_set(t_out, t, MPFR_RNDN);
     mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
     mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+
     return false;
 }

@@ -8,8 +8,9 @@ struct Options
     {
         Z,
         Z_ball,
-        z_OS,
-        ValleyScanner,
+        Z_OS,
+        Valley_Scanner,
+        Valley_Walk,
         Refine,
         Pre_filter,
     } mode;
