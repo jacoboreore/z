@@ -26,13 +26,12 @@ sudo apt-get update && sudo apt-get install -y sysstat
 mpstat -P ALL 1
 
 copy src to remote EC2-----------------------------------------------
-pscp -i "C:\Users\jacob\OneDrive\mio\jacob-key-pair-all-EC2.ppk" "D:\msys64\home\jacob\p\z_from_n" ec2-3-93-174-246.compute-1.amazonaws.com:/root/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@3.84.81.164:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@3.84.81.164:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@3.84.81.164:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@3.84.81.164:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@3.84.81.164:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@3.84.81.164:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@3.90.47.231:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@3.90.47.231:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@3.90.47.231:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@3.90.47.231:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@3.90.47.231:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@3.90.47.231:/home/ubuntu/jacob
 
 
 docker build -t jor_z:native --build-arg NATIVE=1 .

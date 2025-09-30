@@ -112,7 +112,6 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
 
     else if (ieq(k, "prefilter_tau_boost"))
         c.prefilter_tau_boost = std::stod(v);
-
     else if (ieq(k, "prefilter_alpha"))
         c.prefilter_alpha = std::stod(v);
     else if (ieq(k, "prefilter_tau"))
@@ -167,6 +166,8 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.valley_grow = std::stod(v);
     else if (ieq(k, "valley_aggressive_factor"))
         c.valley_aggressive_factor = std::stod(v);
+    else if (ieq(k, "valley_constant_step"))
+        c.valley_constant_step = std::stod(v);
     else if (ieq(k, "valley_tolerance_to_step"))
         c.valley_tolerance_to_step = std::stod(v);
     else if (ieq(k, "valley_max_step"))
@@ -286,6 +287,7 @@ void print_config(const Config &c)
     log_kv("prefilter_alpha", c.prefilter_alpha, D);
     log_kv("prefilter_tau", c.prefilter_tau, D);
     log_kv("prefilter_tau_boost", c.prefilter_tau_boost, D);
+    
     LOGMP_DEBUG("\n");
 
     // --- newton ---
@@ -328,6 +330,7 @@ void print_config(const Config &c)
     // --- valley ---
     log_kv("valley_grow", c.valley_grow, D);
     log_kv("valley_aggressive_factor", c.valley_aggressive_factor, D);
+    log_kv("valley_constant_step", c.valley_constant_step, D);
     log_kv("valley_max_step", c.valley_max_step, D);
     log_kv("valley_max_Zs_relation", c.valley_max_Zs_relation, D);
     log_kv("valley_insistence", c.valley_insistence, D);

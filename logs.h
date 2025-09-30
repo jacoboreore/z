@@ -62,7 +62,7 @@ inline void log_msg_internal(const char *file,
 }
 
 /* -----------------------------------------------------
-   MPFR-aware printf-like logging macros (no va_list).
+   MPFR-aware printf-like logging macros
    Use %Rf / %Re / %Rg with either %.<digits>R? or %.*R?.
    Example:
      LOGMP("t = %.*Rf |Z| = %.*Rg", 24, tval, 20, Ztot);
