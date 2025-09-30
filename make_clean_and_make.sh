@@ -2,6 +2,7 @@ clear
 echo "JACOB's fight club compiler"
 echo "Version control:"
 
+echo "2025"
 echo "09/02 parametrizable settings"
 echo "09/02 small z separated calculation, issues calculating small t (major change)"
 echo "09/05 thread z calculations RS issues, code cleansing"
@@ -20,7 +21,10 @@ echo "09/21 Birthday :D"
 echo "09/22 Q&A, bad spacing calcs, refining valley walking"
 echo "09/25 Q&A, walking through valleys, stable, some zeros are not beign calculated"
 echo "09/26 Q&A, fixes"
+echo "09/29 Constant "step" for valley walking, this ensures to find all zeros"
+echo "09/29 Constant step formula sqrt(N) / 10"
 
 echo "-------------------------------------------"
 
+# native compilation
 make clean && make

@@ -196,8 +196,7 @@ void from_y_walk(mpfr_t start_y)
 
     LOGMP("Process y walk initial params\n---> start_y %.12Rf\n\n", start_y);
 
-    // the we will calculate from the start_y
-    for (double count_valley_from_y_walk = 0; count_valley_from_y_walk < CFG().valley_from_y_walk; count_valley_from_y_walk++)
+    for (double count_valley_from_y_walk = 0; count_valley_from_y_walk < 5; count_valley_from_y_walk++)
     {
         mpfr_t N, N_test, z_prev, z_cur, step, grow, t, y_next, t_star, t_prev;
         mpfr_inits2(CFG().mpfr_prec, N, N_test, z_prev, z_cur, step, grow, t, y_next, t_star, t_prev, (mpfr_ptr)0);
@@ -362,17 +361,17 @@ void from_y_walk(mpfr_t start_y)
     }
 }
 
-void from_y_walk_pure_valley_walk(mpfr_t start_y)
+void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
 {
     mpfr_set_default_prec(CFG().mpfr_prec);
-    const int max_iters = 100000; // killer switch
+    const int max_iters = 10000;
     int iter = 0;
     int main_iter = 0;
-    double newton_tol_step = CFG().newton_tol_step;
+    // double newton_tol_step = CFG().newton_tol_step;
 
-    LOGMP("Process y walk initial params\n---> start_y %.12Rf\n\n", start_y);
+    LOGMPF("Process y walk initial params\n---> start_y %.12Rf\n---> Valley count %f\n\n******************\n", start_y, steps);
 
-    while (main_iter++ < CFG().valley_from_y_walk)
+    while (main_iter++ < steps)
     {
         // no overhead here, just restarting everything
         mpfr_t N, N_test, z_prev, z_cur, step, grow, t, t_refined, t_prev, z_from_bounce;
@@ -425,7 +424,7 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y)
                 go_down = (mpfr_cmp(z_cur, z_prev) < 0);
             } while (!go_down && iter++ < max_iters);
 
-            LOGMP("\n\nNow going down...");
+            LOGMP("\n\nNow going down...\n");
         }
 
         // initial step: ±1 in the chosen direction

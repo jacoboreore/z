@@ -176,9 +176,7 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.valley_max_Zs_relation = std::stod(v);
     else if (ieq(k, "valley_insistence"))
         c.valley_insistence = std::stod(v);
-    else if (ieq(k, "valley_from_y_walk"))
-        c.valley_from_y_walk = std::stod(v);
-
+    
     else if (ieq(k, "enable_min_t"))
         c.enable_min_t = std::stold(v);
     else if (ieq(k, "samples_per_spacing"))

@@ -92,9 +92,9 @@ bool parse_cli(int argc, char **argv, Options &out)
     }
     else if (mode == "valley_scanner")
     {
-        if (argc != 4)
+        if (argc != 3)
         {
-            std::cerr << "[error] valley_scanner requires 2 numbers: <t> <step>\n";
+            std::cerr << "[error] valley_scanner requires 1 number: <t>\n";
             print_usage(argv[0]);
             return false;
         }
@@ -105,15 +105,8 @@ bool parse_cli(int argc, char **argv, Options &out)
             return false;
         }
 
-        if (!mpfr_num_ok(argv[3]))
-        {
-            std::cerr << "[error] invalid number for step: " << argv[3] << "\n";
-            return false;
-        }
-
         out.mode = Options::Mode::Valley_Scanner;
         out.t_str = argv[2];
-        out.step_str = argv[3];
 
         return true;
     }
