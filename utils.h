@@ -4,20 +4,21 @@
 #include <sstream>
 #include <mutex>
 
-// Best-zero global state (singleton pattern) 
-struct BestZeroState {
-    mpfr_t best_absZ;   // |Z| of the best-so-far
-    mpfr_t best_t;      // corresponding t
-    mpfr_prec_t P;      // precision used for the mpfr_t's
+// Best-zero global state (singleton pattern)
+struct BestZeroState
+{
+    mpfr_t best_absZ; // |Z| of the best-so-far
+    mpfr_t best_t;    // corresponding t
+    mpfr_prec_t P;    // precision used for the mpfr_t's
     bool initialized;
     BestZeroState() : P(0), initialized(false) {}
 };
 
-BestZeroState& best_state();                        // access singleton
-void best_init(mpfr_prec_t P);                      // call once at startup (or when precision changes)
-void best_reset();                                  // set |Z|=9'999'999 and t=0
-void best_update(mpfr_srcptr Z, mpfr_srcptr t);     // compare |Z| and update if better
-void best_get(mpfr_t out_t, mpfr_t out_absZ);       // copy out a snapshot (thread-safe)
+BestZeroState &best_state();                    // access singleton
+void best_init(mpfr_prec_t P);                  // call once at startup (or when precision changes)
+void best_reset();                              // set |Z|=9'999'999 and t=0
+void best_update(mpfr_srcptr Z, mpfr_srcptr t); // compare |Z| and update if better
+void best_get(mpfr_t out_t, mpfr_t out_absZ);   // copy out a snapshot (thread-safe)
 
 inline std::string mpfr_to_string(mpfr_srcptr x, int digits, char mode = 'g')
 {
@@ -56,4 +57,3 @@ void get_best_t_so_far();
 void remainder_bound(mpfr_t R, const mpfr_t t);
 
 long double mpfr_to_long_double_safe(const mpfr_t x, mpfr_rnd_t rnd);
-

@@ -13,6 +13,7 @@
 #include "utils.h"
 #include "refine_newton.h"
 #include "refine_newton_thread.h"
+#include "file.h"
 
 std::mutex print_mutex;
 
@@ -369,6 +370,9 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
     int main_iter = 0;
     // double newton_tol_step = CFG().newton_tol_step;
 
+    // get the file name for this process
+    std::string process_file = zcsv::make_process_filename("output", "valley_walk");
+
     LOGMPF("Process y walk initial params\n---> start_y %.12Rf\n---> Valley count %f\n\n******************\n", start_y, steps);
 
     while (main_iter++ < steps)
@@ -454,7 +458,6 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
             if (mpfr_cmp(z_cur, z_prev) < 0)
             {
                 // keep walking to the valley
-                // contant_step(step);
                 mpfr_set(z_prev, z_cur, MPFR_RNDN);
 
                 continue;
@@ -495,6 +498,12 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
                        t_refined,
                        CFG().rs_log_digits,
                        z_from_bounce);
+
+                bool ok = zcsv::append_record_csv(process_file, t_refined, z_from_bounce, N, 24);
+                if (!ok)
+                {
+                    LOGMPF("Error writing csv");
+                }
 
                 mpfr_set(start_y, t, MPFR_RNDN);
 

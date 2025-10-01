@@ -19,10 +19,13 @@ echo "09/17 Stable Odlyzko–Schönhage valley scanner algorithm merge, valley s
 echo "09/18 Docker version, native compilation, CPUs as param (major adding), run.sh"
 echo "09/21 Birthday :D"
 echo "09/22 Q&A, bad spacing calcs, refining valley walking"
-echo "09/25 Q&A, walking through valleys, stable, some zeros are not beign calculated"
+echo "09/25 Q&A, walking through valleys, stable, some zeros are not beign calculated with smart step"
 echo "09/26 Q&A, fixes"
 echo "09/29 Constant "step" for valley walking, this ensures to find all zeros"
-echo "09/29 Constant step formula sqrt(N) / 10"
+echo "09/29 Constant step formula:  s = sqrt(N) / 10"
+echo "09/30 Progressive refinement 1e-8 1e-10 1e-12"
+echo "09/30 Batch progressive refinement, take t values from file, logs to file"
+echo "09/30 Output files with calculations to AWS S3 if available"
 
 echo "-------------------------------------------"
 

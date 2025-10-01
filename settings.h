@@ -25,8 +25,8 @@ struct Config
     double prefilter_alpha = 0.50;
     double prefilter_tau = 0.30;
 
-    double newton_tol_abs = 1e-5;
-    double newton_tol_step = 1e-14;
+    long double newton_tol_abs = 1e-5;
+    long double newton_tol_step = 1e-14;
     int newton_max_iter = 5;
     bool use_threaded_z = true;
     bool use_threaded_newton = false;

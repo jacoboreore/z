@@ -2,3 +2,5 @@ jacob-key-pair-all-EC2.ppk
 bin/
 build/
 .vscode/
+output/
+logs/

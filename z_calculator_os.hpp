@@ -656,7 +656,7 @@ namespace osquick
         Real min_absZ{}; // min_i |Z[i]|
         int idx_min{-1}; // where min_absZ occurs
         bool has_flip{false};
-        bool near{false};
+        bool is_near{false};
         Real suggested_step{}; // = -dt_pred
     };
 
@@ -721,7 +721,7 @@ namespace osquick
         }
 
         // verdict: any of these means "near enough"
-        ev.near = (ev.absZc <= absZ_tol) || ev.has_flip || (ev.ratio <= ratio_tol) || (ev.min_absZ <= absZ_tol);
+        ev.is_near = (ev.absZc <= absZ_tol) || ev.has_flip || (ev.ratio <= ratio_tol) || (ev.min_absZ <= absZ_tol);
 
         // step suggestion (for your scanner to “home in” quickly)
         ev.suggested_step = -ev.dt_pred;
@@ -740,7 +740,7 @@ namespace osquick
                   << "\nratio=" << ev.ratio
                   << "\nmin|Z|=" << ev.min_absZ
                   << "\nflip=" << (ev.has_flip ? 1 : 0)
-                  << "\nverdict=" << (ev.near ? "NEAR" : "FAR")
+                  << "\nverdict=" << (ev.is_near ? "NEAR" : "FAR")
                   << "\nsuggested_step=" << ev.suggested_step
                   << "\n";
     }

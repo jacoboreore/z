@@ -11,7 +11,7 @@ CPPFLAGS += -DMPFR_USE_NO_MACRO -DMPFR_USE_INTMAX_T \
             -I$(MPREAL_INC) -include stdint.h
 CXXFLAGS += -O3 -march=native -mtune=native -std=c++20 -MMD -MP -fopenmp $(CPPFLAGS)
 LDFLAGS  += -pthread -fopenmp
-LIBS     += -lmpc -lmpfr -lgmp -fopenmp
+LIBS     += -lmpc -lmpfr -lgmp -fopenmp -lstdc++fs
 
 # Debug / tracing
 DBGFLAGS = -O1 -g -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS -D_FORTIFY_SOURCE=2 \
@@ -23,7 +23,7 @@ OBJ_DIR  = build
 BIN_DIR  = bin
 TARGET   = $(BIN_DIR)/z
 
-SOURCES = \
+SOURCES =                     \
   custom_y.cpp                \
   z_theta.cpp                 \
   z_walk.cpp                  \
@@ -36,7 +36,7 @@ SOURCES = \
   settings.cpp                \
   cli.cpp                     \
   utils.cpp                   \
-  main.cpp
+  main.cpp                      
 
 OBJECTS = $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 DEPS    = $(OBJECTS:.o=.d)

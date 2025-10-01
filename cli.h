@@ -12,11 +12,14 @@ struct Options
         Valley_Scanner,
         Valley_Walk,
         Refine,
+        Refine_Progressive,
         Pre_filter,
     } mode;
 
     std::string t_str;    // raw decimal string for t
     std::string step_str; // only set for ValleyScanner
+    std::string file_str; // file path or other string to reuse this var
+    
 };
 
 bool parse_cli(int argc, char **argv, Options &out);

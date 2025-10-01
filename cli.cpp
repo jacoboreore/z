@@ -158,6 +158,21 @@ bool parse_cli(int argc, char **argv, Options &out)
 
         return true;
     }
+    else if (mode == "refine_progressive")
+    {
+        if (argc != 3)
+        {
+            std::cerr << "[error] refine requires exactly 1 string [file, full or relative path]]\n";
+            print_usage(argv[0]);
+            return false;
+        }
+
+        out.mode = Options::Mode::Refine_Progressive;
+        out.file_str = argv[2];
+        out.step_str.clear();
+
+        return true;
+    }
     else if (mode == "z_os")
     {
         if (argc != 3)

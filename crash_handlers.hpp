@@ -1,16 +1,18 @@
 #pragma once
+
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>   
+#include <cstring>
 
 #if defined(__unix__) || defined(__APPLE__)
-  #include <execinfo.h>
+#include <execinfo.h>
 #endif
 
-inline void os_dump_stack() {
+inline void os_dump_stack()
+{
 #if defined(__unix__) || defined(__APPLE__)
-    void* bt[64];
+    void *bt[64];
     int n = ::backtrace(bt, 64);
     std::fprintf(stderr, "\n---- BACKTRACE ----\n");
     ::backtrace_symbols_fd(bt, n, fileno(stderr));
@@ -20,32 +22,43 @@ inline void os_dump_stack() {
 #endif
 }
 
-inline const char* os_signal_name(int sig) {
+inline const char *os_signal_name(int sig)
+{
 #if defined(__unix__) || defined(__APPLE__)
-    const char* name = ::strsignal(sig);  // global namespace
+    const char *name = ::strsignal(sig); // global namespace
     return name ? name : "unknown";
 #else
     // Minimal fallback for non-POSIX platforms
-    switch (sig) {
-        case SIGSEGV: return "SIGSEGV";
-        case SIGABRT: return "SIGABRT";
-        case SIGFPE:  return "SIGFPE";
-        case SIGILL:  return "SIGILL";
-        case SIGINT:  return "SIGINT";
-        case SIGTERM: return "SIGTERM";
-        default:      return "signal";
+    switch (sig)
+    {
+    case SIGSEGV:
+        return "SIGSEGV";
+    case SIGABRT:
+        return "SIGABRT";
+    case SIGFPE:
+        return "SIGFPE";
+    case SIGILL:
+        return "SIGILL";
+    case SIGINT:
+        return "SIGINT";
+    case SIGTERM:
+        return "SIGTERM";
+    default:
+        return "signal";
     }
 #endif
 }
 
-inline void os_signal_handler(int sig) {
-    const char* name = os_signal_name(sig);
+inline void os_signal_handler(int sig)
+{
+    const char *name = os_signal_name(sig);
     std::fprintf(stderr, "\n[FATAL] signal %d (%s) received\n", sig, name);
     os_dump_stack();
     std::_Exit(128 + sig);
 }
 
-inline void install_crash_handlers() {
+inline void install_crash_handlers()
+{
 #if defined(__unix__) || defined(__APPLE__)
     // Prefer sigaction on POSIX for reliable behavior
     struct sigaction sa{};
@@ -54,12 +67,12 @@ inline void install_crash_handlers() {
     sa.sa_flags = SA_RESETHAND;
     ::sigaction(SIGSEGV, &sa, nullptr);
     ::sigaction(SIGABRT, &sa, nullptr);
-    ::sigaction(SIGFPE,  &sa, nullptr);
-    ::sigaction(SIGILL,  &sa, nullptr);
+    ::sigaction(SIGFPE, &sa, nullptr);
+    ::sigaction(SIGILL, &sa, nullptr);
 #else
     std::signal(SIGSEGV, os_signal_handler);
     std::signal(SIGABRT, os_signal_handler);
-    std::signal(SIGFPE,  os_signal_handler);
-    std::signal(SIGILL,  os_signal_handler);
+    std::signal(SIGFPE, os_signal_handler);
+    std::signal(SIGILL, os_signal_handler);
 #endif
 }
