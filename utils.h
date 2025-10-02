@@ -22,6 +22,8 @@ void best_get(mpfr_t out_t, mpfr_t out_absZ);   // copy out a snapshot (thread-s
 
 inline std::string mpfr_to_string(mpfr_srcptr x, int digits, char mode = 'g')
 {
+    if (x == nullptr) return "";
+
     // mode: 'f' fixed, 'e' scientific, 'g' general
     char fmt[8]; // e.g. "%.*Rg"
     fmt[0] = '%';

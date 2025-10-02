@@ -176,7 +176,7 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.valley_max_Zs_relation = std::stod(v);
     else if (ieq(k, "valley_insistence"))
         c.valley_insistence = std::stod(v);
-    
+
     else if (ieq(k, "enable_min_t"))
         c.enable_min_t = std::stold(v);
     else if (ieq(k, "samples_per_spacing"))
@@ -203,6 +203,19 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.eps_rel = std::stold(v);
     else if (ieq(k, "flip_center_frac"))
         c.flip_center_frac = std::stold(v);
+
+    else if (ieq(k, "walking_output_enabled"))
+        c.walking_output_enabled = to_bool(v);
+    else if (ieq(k, "walking_for_plotting_enabled"))
+        c.walking_for_plotting_enabled = to_bool(v);
+    else if (ieq(k, "refine_output_enabled"))
+        c.refine_output_enabled = to_bool(v);
+    else if (ieq(k, "header_refined"))
+        c.header_refined = v;
+    else if (ieq(k, "header_walking"))
+        c.header_walking = v;
+    else if (ieq(k, "header_walking_for_plotting"))
+        c.header_walking_for_plotting = v;
 }
 
 static void load_file(Config &cfg, const std::string &path)
@@ -285,7 +298,7 @@ void print_config(const Config &c)
     log_kv("prefilter_alpha", c.prefilter_alpha, D);
     log_kv("prefilter_tau", c.prefilter_tau, D);
     log_kv("prefilter_tau_boost", c.prefilter_tau_boost, D);
-    
+
     LOGMP_DEBUG("\n");
 
     // --- newton ---
@@ -332,7 +345,6 @@ void print_config(const Config &c)
     log_kv("valley_max_step", c.valley_max_step, D);
     log_kv("valley_max_Zs_relation", c.valley_max_Zs_relation, D);
     log_kv("valley_insistence", c.valley_insistence, D);
-
     LOGMP_DEBUG("\n");
 
     // --- OS / Odlyzko–Schönhage ---
@@ -350,6 +362,15 @@ void print_config(const Config &c)
     log_kv("eps_rel", c.eps_rel, D);
     log_kv("flip_center_frac", c.flip_center_frac, D);
     LOGMP_DEBUG("\n");
+
+    // outputs
+    log_kv("walking_output_enabled", c.walking_output_enabled, D);
+    log_kv("walking_for_plotting_enabled", c.walking_for_plotting_enabled, D);
+    log_kv("refine_output_enabled", c.refine_output_enabled, D);
+    log_kv("header_refined", c.header_refined, D);
+    log_kv("header_walking", c.header_walking, D);
+    log_kv("header_walking_for_plotting", c.header_walking_for_plotting, D);
+
 }
 
 void apply_precision(const Config &cfg)

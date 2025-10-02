@@ -91,23 +91,25 @@ void contant_step(mpfr_t constat_step, const mpfr_t N)
 
     if (valley_constant_step == 0)
     {
-        LOGMP("Evaluating constant step...");
-        mpfr_t step, hundred;
-        mpfr_inits2(CFG().mpfr_prec, step, hundred, (mpfr_ptr)0);
+        LOGMP("Evaluating constant step from N = %.*Rg", CFG().rs_log_digits, N);
 
-        mpfr_set_ui(hundred, 10, MPFR_RNDN);
+        mpfr_t calculated_step, divisor;
+        mpfr_inits2(CFG().mpfr_prec, calculated_step, divisor, (mpfr_ptr)0);
 
-        mpfr_sqrt(step, N, MPFR_RNDN);
-        mpfr_div(step, step, hundred, MPFR_RNDN);
-        mpfr_set(constat_step, step, MPFR_RNDN);
+        mpfr_set_ui(divisor, 10, MPFR_RNDN);
+
+        mpfr_sqrt(calculated_step, N, MPFR_RNDN);
+        mpfr_div(calculated_step, calculated_step, divisor, MPFR_RNDN);
+        mpfr_set(constat_step, calculated_step, MPFR_RNDN);
 
         LOGMP("Constant step = %.12Rf\n\n", constat_step);
 
-        mpfr_clears(step, hundred, (mpfr_ptr)0);
+        mpfr_clears(calculated_step, divisor, (mpfr_ptr)0);
     }
     else
     {
         mpfr_set_d(constat_step, valley_constant_step, MPFR_RNDN);
+        LOGMP("Constant step from log, step =  %.12Rf", constat_step);
     }
 }
 
@@ -368,10 +370,14 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
     const int max_iters = 10000;
     int iter = 0;
     int main_iter = 0;
+    bool ok = false;
     // double newton_tol_step = CFG().newton_tol_step;
 
     // get the file name for this process
     std::string process_file = zcsv::make_process_filename("output", "valley_walk");
+
+    // get the file name for the valley walking calculation for plotting
+    std::string walk_file = zcsv::make_process_filename("output", "valley_walk_plot");
 
     LOGMPF("Process y walk initial params\n---> start_y %.12Rf\n---> Valley count %f\n\n******************\n", start_y, steps);
 
@@ -410,7 +416,7 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
         iter = 0;
         if (!go_down)
         {
-            LOGMP("\n\n Climbing the mountain, we need to go down...\n ");
+            LOGMP("\n\nClimbing the mountain, we need to go down...\n ");
             do
             {
                 mpfr_add(N, N, step, MPFR_RNDN);
@@ -418,6 +424,14 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
                 compute_Z(z_cur, t);
                 mpfr_abs(z_cur, z_cur, MPFR_RNDN);
 
+                if (CFG().walking_for_plotting_enabled)
+                {
+                    ok = zcsv::append_record_csv(walk_file, t, z_cur, N, nullptr, 0, 2, CFG().rs_log_digits);
+                    if (!ok)
+                    {
+                        LOGMPF("\n\n******** ERROR writing csv ***********\n\n");
+                    }
+                }
                 if (mpfr_cmp(z_cur, z_prev) > 0)
                 {
                     // smart_step(z_prev, z_cur, step);
@@ -427,16 +441,16 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
 
                 go_down = (mpfr_cmp(z_cur, z_prev) < 0);
             } while (!go_down && iter++ < max_iters);
-
-            LOGMP("\n\nNow going down...\n");
         }
 
+        LOGMP("\nGoing down...\n");
         // initial step: ±1 in the chosen direction
         // mpfr_set_d(step, go_down ? CFG().valley_grow : -1 * CFG().valley_grow, MPFR_RNDN);
 
         // LOGMP("\n\n****** Initial direction: %s ******\n", go_down ? "DOWN" : "UP");
 
         iter = 0; // killer switch
+
         while (iter++ < max_iters)
         {
             // move N by 'step'
@@ -454,6 +468,14 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
             LOGMP("Scan: Z = %.50Rf t = %.30Rf STEP = %.10Rf", z_cur, t, step);
             LOGMP("N = %.30Rf\n", N);
 
+            if (CFG().walking_for_plotting_enabled)
+            {
+                ok = zcsv::append_record_csv(walk_file, t, z_cur, N, nullptr, 0, 2, CFG().rs_log_digits);
+                if (!ok)
+                {
+                    LOGMPF("\n\n******** ERROR writing csv ***********\n\n");
+                }
+            }
             // -----------------------------------
             if (mpfr_cmp(z_cur, z_prev) < 0)
             {
@@ -468,6 +490,15 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
                 LOGMP("\n\n*** valley bottom, sign change detected, Mountain position going UP |Z| = %.20Rf t = %.20Rf\n", z_cur, t);
                 LOGMP("refining t = %.20Rf...", t_prev);
 
+                // values for plotting, we register a minima at t_prev
+                if (CFG().walking_for_plotting_enabled)
+                {
+                    ok = zcsv::append_record_csv(walk_file, t_prev, z_prev, N, nullptr, 1, 2, CFG().rs_log_digits);
+                    if (!ok)
+                    {
+                        LOGMPF("\n\n******** ERROR writing csv ***********\n\n");
+                    }
+                }
                 if (CFG().use_threaded_newton)
                 {
                     LOGMP("Using parallelized Newton...");
@@ -492,6 +523,9 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
                 }
 
                 compute_Z(z_from_bounce, t_refined);
+                mpfr_abs(z_from_bounce, z_from_bounce, MPFR_RNDN);
+
+                // zcsv::append_record_csv(walk_file, t_refined, z_from_bounce, N, CFG().rs_log_digits);
 
                 LOGMPF("====================> LOG Refined t = %.*Rg |Z| = %.*Rg",
                        CFG().rs_log_digits,
@@ -499,10 +533,10 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
                        CFG().rs_log_digits,
                        z_from_bounce);
 
-                bool ok = zcsv::append_record_csv(process_file, t_refined, z_from_bounce, N, 24);
+                ok = zcsv::append_record_csv(process_file, t_refined, z_from_bounce, N, nullptr, 2, 1, CFG().rs_log_digits);
                 if (!ok)
                 {
-                    LOGMPF("Error writing csv");
+                    LOGMPF("\n\n******** ERROR writing csv ***********\n\n");
                 }
 
                 mpfr_set(start_y, t, MPFR_RNDN);

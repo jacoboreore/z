@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <cstring>
+#include <string>
 
 #if defined(OS_USE_MPFR)
 #include "mpreal.h"
@@ -67,7 +69,7 @@ struct Config
     int poly_deg_R = 4;           // Taylor degree (2..6 reasonable)
     bool return_main_sum = false; // if true: skip θ factor (debug)
 
-    // NEW: classification thresholds (can mirror your valley cfg)
+    // NEW: classification thresholds
     Real tol_refine = 1e-4L;      // what you pass to Newton as “near enough”
     Real z_far = 0.5L;            // |Zc| above this looks far (order-1)
     Real ratio_far = 0.5L;        // |dt_pred|/spacing above this looks off-center
@@ -75,6 +77,15 @@ struct Config
     Real eps_abs = 1e-3L;         // absolute guard band for ‘trusted sign’
     Real eps_rel = 0.02L;         // relative guard band (fraction of median |Z|)
     Real flip_center_frac = 0.6L; // flip must be within ±0.6*spacing of center to auto-accept
+
+    // Outputs
+    bool walking_output_enabled = true;
+    bool walking_for_plotting_enabled = true;
+    bool refine_output_enabled = true;
+
+    std::string header_refined = "t,absZ,spacing";
+    std::string header_walking = "t,absZ,N";
+    std::string header_walking_for_plotting = "t,absZ,N,minima";
 };
 
 // Initialize once

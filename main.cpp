@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 
         // get the file name for this process
         std::string refine_file = zcsv::make_process_filename("output", "refined");
-        LOGMPF("Refining values will be in: %s", refine_file);
+        LOGMPF("Refining values will be in: %s", refine_file.c_str());
 
         // open calculations file
         ok = zcsv::read_triplets_csv(
@@ -208,10 +208,9 @@ int main(int argc, char **argv)
                             CFG().use_threaded_z ? 1 : 0);
                     }
 
-                    // best_get(best_t, best_absZ);
                     mpfr_set(working_t, t_star, MPFR_RNDN);
 
-                    // get_best_t_so_far();
+                    // increase the precision to refine
                     newton_tol_abs = newton_tol_abs * (1e-2);
                     newton_tol_step = newton_tol_step * (1e-2);
                 }
@@ -226,7 +225,7 @@ int main(int argc, char **argv)
                        CFG().rs_log_digits, NN,
                        CFG().rs_log_digits, best_absZ);
 
-                bool write_ok = zcsv::append_record_csv(to_file, working_t, best_absZ, NN);
+                bool write_ok = zcsv::append_record_csv(to_file, working_t, best_absZ, NN, nullptr, 2, 3, CFG().rs_log_digits);
                 if (!write_ok)
                 {
                     LOGMPF("Error writing csv");
@@ -237,7 +236,7 @@ int main(int argc, char **argv)
 
         if (!ok)
         {
-            LOGMPF("CSV read completed with errors.  Ensure consistency if edition was manual");
+            LOGMPF("Can't read CSV, or completed with errors.\nEnsure consistency if edition was manual, and confirm correct path");
         }
     }
     else if (opt.mode == Options::Mode::Z_OS)

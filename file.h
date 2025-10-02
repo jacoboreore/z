@@ -85,12 +85,16 @@ namespace zcsv
 
     // Append a single CSV record: t,absZ,N (all mpfr_t)
     // Thread-safe; opens file, appends, fsync/commit, closes.
-    inline bool append_record_csv(const std::string &filepath,
-                                  const mpfr_t t,
-                                  const mpfr_t absZ,
-                                  const mpfr_t N,
-                                  int digits = 24,
-                                  bool write_header_if_new = true)
+    inline bool append_record_csv(
+        const std::string &filepath,
+        const mpfr_t t,
+        const mpfr_t absZ,
+        const mpfr_t N,
+        const mpfr_t spacing,
+        const int minima, // 1 -> last |Z| before bouncing, 2 -> refined t
+        const int mode,   // 1 walking, 2 walking for plotting, 3 refine
+        int digits = 24,
+        bool write_header_if_new = true)
     {
         std::lock_guard<std::mutex> lock(csv_mutex());
 
@@ -111,18 +115,65 @@ namespace zcsv
         const bool new_file = !std::filesystem::exists(filepath);
 
         // Build the CSV line in memory first (single write → no interleaving).
+        // header_refined = t,absZ,spacing
+        // header_walking = t,absZ,N
+        // header_walking_for_plotting = t,absZ,N,minima
+
         std::string line;
         if (write_header_if_new && new_file)
         {
-            line += "t,absZ,N\n";
+            switch (mode)
+            {
+            case 1:
+                // header_walking
+                line += CFG().header_walking + "\n";
+                break;
+            case 2:
+                // header_walking_for_plotting
+                line += CFG().header_walking_for_plotting + "\n";
+                break;
+            case 3:
+                // refine
+                line += CFG().header_refined + "\n";
+                break;
+            }
+            // line += "t,absZ,N\n";
         }
 
-        line += mpfr_to_string(t, digits, 'g');
-        line += ',';
-        line += mpfr_to_string(absZ, digits, 'g');
-        line += ',';
-        line += mpfr_to_string(N, digits, 'g');
-        line += '\n';
+        switch (mode)
+        {
+        case 1:
+            // walking
+            line += mpfr_to_string(t, digits, 'g');
+            line += ',';
+            line += mpfr_to_string(absZ, digits, 'g');
+            line += ',';
+            line += mpfr_to_string(N, digits, 'g');
+            line += '\n';
+            break;
+        case 2:
+            // walking_for_plotting
+            line += mpfr_to_string(t, digits, 'g');
+            line += ',';
+            line += mpfr_to_string(absZ, digits, 'g');
+            line += ',';
+            line += mpfr_to_string(N, digits, 'g');
+            line += ',';
+            line += std::to_string(minima);
+            line += '\n';
+            break;
+        case 3:
+            // refine
+            line += mpfr_to_string(t, digits, 'g');
+            line += ',';
+            line += mpfr_to_string(absZ, digits, 'g');
+            line += ',';
+            line += mpfr_to_string(N, digits, 'g');
+            line += ',';
+            line += mpfr_to_string(spacing, digits, 'g');
+            line += '\n';
+            break;
+        }
 
         // Open, write, sync, close
         int fd = ZC_OPEN(filepath.c_str(), ZC_OFLAGS, ZC_MODE);
