@@ -157,14 +157,22 @@ int main(int argc, char **argv)
 
         // get the file name for this process
         std::string refine_file = zcsv::make_process_filename("output", "refined");
-        LOGMPF("Refining values will be in: %s", refine_file.c_str());
+        LOGMPF("Refined values will be in this file: %s", refine_file.c_str());
 
+        mpfr_t spacing, prev_t;
+        mpfr_inits2(CFG().mpfr_prec, spacing, prev_t, (mpfr_ptr)0);
+
+        mpfr_set_d(spacing, 0, MPFR_RNDN);
+        mpfr_set_d(prev_t, 0, MPFR_RNDN);
+        
         // open calculations file
         ok = zcsv::read_triplets_csv(
             opt.file_str,
             refine_file,
+            spacing,
+            prev_t,
             CFG().mpfr_prec,
-            [](const mpfr_t t_from_file, const mpfr_t absZ, const mpfr_t N, size_t line_no, const std::string to_file)
+            [](const mpfr_t t_from_file, const mpfr_t absZ, const mpfr_t N, size_t line_no, const std::string to_file, mpfr_t spacing, mpfr_t prev_t)
             {
                 long double newton_tol_abs = CFG().newton_tol_abs;
                 long double newton_tol_step = CFG().newton_tol_step;
@@ -178,7 +186,7 @@ int main(int argc, char **argv)
                 mpfr_t t_star, best_t, best_absZ, NN, working_t;
                 mpfr_inits2(CFG().mpfr_prec, t_star, best_t, best_absZ, NN, working_t, (mpfr_ptr)0);
 
-                // a copy
+                // a copy from t
                 mpfr_set(working_t, t_from_file, MPFR_RNDN);
 
                 for (int i = 0; i < CFG().newton_max_iter; i++)
@@ -225,7 +233,11 @@ int main(int argc, char **argv)
                        CFG().rs_log_digits, NN,
                        CFG().rs_log_digits, best_absZ);
 
-                bool write_ok = zcsv::append_record_csv(to_file, working_t, best_absZ, NN, nullptr, 2, 3, CFG().rs_log_digits);
+                // calculate spacing 
+                mpfr_sub(spacing, working_t, prev_t, MPFR_RNDN);
+                mpfr_set(prev_t, working_t, MPFR_RNDN);
+                
+                bool write_ok = zcsv::append_record_csv(to_file, working_t, best_absZ, NN, spacing, 2, 3, CFG().rs_log_digits);
                 if (!write_ok)
                 {
                     LOGMPF("Error writing csv");
@@ -238,6 +250,8 @@ int main(int argc, char **argv)
         {
             LOGMPF("Can't read CSV, or completed with errors.\nEnsure consistency if edition was manual, and confirm correct path");
         }
+
+        mpfr_clears(spacing, (mpfr_ptr)0);
     }
     else if (opt.mode == Options::Mode::Z_OS)
     {

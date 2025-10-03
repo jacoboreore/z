@@ -468,20 +468,19 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
             LOGMP("Scan: Z = %.50Rf t = %.30Rf STEP = %.10Rf", z_cur, t, step);
             LOGMP("N = %.30Rf\n", N);
 
-            if (CFG().walking_for_plotting_enabled)
-            {
-                ok = zcsv::append_record_csv(walk_file, t, z_cur, N, nullptr, 0, 2, CFG().rs_log_digits);
-                if (!ok)
-                {
-                    LOGMPF("\n\n******** ERROR writing csv ***********\n\n");
-                }
-            }
             // -----------------------------------
             if (mpfr_cmp(z_cur, z_prev) < 0)
             {
                 // keep walking to the valley
                 mpfr_set(z_prev, z_cur, MPFR_RNDN);
-
+                if (CFG().walking_for_plotting_enabled)
+                {
+                    ok = zcsv::append_record_csv(walk_file, t, z_cur, N, nullptr, 0, 2, CFG().rs_log_digits);
+                    if (!ok)
+                    {
+                        LOGMPF("\n\n******** ERROR writing csv ***********\n\n");
+                    }
+                }
                 continue;
             }
             else

@@ -168,8 +168,6 @@ namespace zcsv
             line += ',';
             line += mpfr_to_string(absZ, digits, 'g');
             line += ',';
-            line += mpfr_to_string(N, digits, 'g');
-            line += ',';
             line += mpfr_to_string(spacing, digits, 'g');
             line += '\n';
             break;
@@ -262,7 +260,9 @@ namespace zcsv
     bool read_triplets_csv(
         const std::string &filepath,
         const std::string to_file,
-        mpfr_prec_t prec_bits,
+        mpfr_t spacing,
+        mpfr_t prev_t,
+        const mpfr_prec_t prec_bits,
         F &&on_row,
         bool has_header_auto = true)
     {
@@ -332,7 +332,7 @@ namespace zcsv
             }
 
             // user callback
-            on_row(t, absZ, N, line_no, to_file);
+            on_row(t, absZ, N, line_no, to_file, spacing, prev_t);
         }
 
         mpfr_clear(t);
