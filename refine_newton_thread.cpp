@@ -9,6 +9,7 @@
 #include "settings.h"
 #include "logs.h"
 #include "utils.h"
+
 #ifdef _OPENMP
 #include <omp.h>
 static inline void omp_diag(const char *tag)

@@ -4,7 +4,6 @@
 #include "z_calculator.h"           
 #include "z_calculator_small.h"  
 
-
 // Estimate local spacing s ≈ π / log(t/2π)
 static inline double est_spacing(const mpfr_t t)
 {

@@ -41,6 +41,42 @@ $ test cores
 
 for t in 4 6 8; do OMP_NUM_THREADS=$t numactl -N0 -m0 ./bin/z z 1e18; done
 
+----------------------------------------------------------------------------
+# mem assessing
+
+# System-wide snapshot
+free -h
+vmstat -s | head -n 25
+cat /proc/meminfo | head -n 25
+
+# Top processes by RSS
+ps -eo pid,ppid,cmd,%mem,rss,vsz --sort=-rss | head -n 20
+
+
+------------
+
+# Replace 'z_calc' with your binary name:
+PID=$(pgrep -n z_calc)
+
+# System view
+vmstat 1
+
+# Per-process RSS/VmSize/VmHWM (peak) every second
+watch -n 1 "grep -E 'Vm(RSS|Size|HWM|Peak)' /proc/$PID/status"
+
+# Detailed memory map totals
+watch -n 2 "cat /proc/$PID/smaps_rollup"
+
+# Page faults & RSS over time (nice CSV-ish log)
+sudo apt-get update && sudo apt-get install -y sysstat
+pidstat -r -p $PID 1
+# Or log to file:
+pidstat -r -p $PID 1 > /tmp/mem_pidstat.log
+
+
+
+
+
 -----------------------------------------------------------------------------
 
 sudo apt-get update && sudo apt-get -y install docker.io

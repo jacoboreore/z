@@ -1,7 +1,7 @@
-#include "settings.h"
 #include <algorithm>
 #include <mpfr.h>
 #include <mpc.h>
+#include "settings.h"
 
 // Coefficients c_m up to m=9 for:
 // θ(t) = t/2 log(t/(2π)) - t/2 - π/8 + Σ c_m / t^{2m-1}

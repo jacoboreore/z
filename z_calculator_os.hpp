@@ -1,6 +1,4 @@
 #pragma once
-#include "logs.h"
-#include "settings.h"
 #include <vector>
 #include <complex>
 #include <cmath>
@@ -8,6 +6,8 @@
 #include <algorithm>
 #include <limits>
 #include <cassert>
+#include "logs.h"
+#include "settings.h"
 
 // ---- constants & math wrappers that work for both backends ----
 template <class T>

@@ -88,6 +88,7 @@ static inline void smart_step(const mpfr_t z_prev,
 void contant_step(mpfr_t constat_step, const mpfr_t N)
 {
     double valley_constant_step = CFG().valley_constant_step;
+    double valley_constant_step_div = CFG().valley_constant_step_div;
 
     if (valley_constant_step == 0)
     {
@@ -96,7 +97,7 @@ void contant_step(mpfr_t constat_step, const mpfr_t N)
         mpfr_t calculated_step, divisor;
         mpfr_inits2(CFG().mpfr_prec, calculated_step, divisor, (mpfr_ptr)0);
 
-        mpfr_set_ui(divisor, 10, MPFR_RNDN);
+        mpfr_set_ui(divisor, valley_constant_step_div, MPFR_RNDN);
 
         mpfr_sqrt(calculated_step, N, MPFR_RNDN);
         mpfr_div(calculated_step, calculated_step, divisor, MPFR_RNDN);

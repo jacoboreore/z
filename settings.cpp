@@ -168,6 +168,8 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.valley_aggressive_factor = std::stod(v);
     else if (ieq(k, "valley_constant_step"))
         c.valley_constant_step = std::stod(v);
+    else if (ieq(k, "valley_constant_step_div"))
+        c.valley_constant_step_div = std::stod(v);
     else if (ieq(k, "valley_tolerance_to_step"))
         c.valley_tolerance_to_step = std::stod(v);
     else if (ieq(k, "valley_max_step"))
@@ -208,8 +210,6 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.walking_output_enabled = to_bool(v);
     else if (ieq(k, "walking_for_plotting_enabled"))
         c.walking_for_plotting_enabled = to_bool(v);
-    else if (ieq(k, "refine_output_enabled"))
-        c.refine_output_enabled = to_bool(v);
     else if (ieq(k, "header_refined"))
         c.header_refined = v;
     else if (ieq(k, "header_walking"))
@@ -342,6 +342,7 @@ void print_config(const Config &c)
     log_kv("valley_grow", c.valley_grow, D);
     log_kv("valley_aggressive_factor", c.valley_aggressive_factor, D);
     log_kv("valley_constant_step", c.valley_constant_step, D);
+    log_kv("valley_constant_step_div", c.valley_constant_step_div, D);
     log_kv("valley_max_step", c.valley_max_step, D);
     log_kv("valley_max_Zs_relation", c.valley_max_Zs_relation, D);
     log_kv("valley_insistence", c.valley_insistence, D);
@@ -366,7 +367,6 @@ void print_config(const Config &c)
     // outputs
     log_kv("walking_output_enabled", c.walking_output_enabled, D);
     log_kv("walking_for_plotting_enabled", c.walking_for_plotting_enabled, D);
-    log_kv("refine_output_enabled", c.refine_output_enabled, D);
     log_kv("header_refined", c.header_refined, D);
     log_kv("header_walking", c.header_walking, D);
     log_kv("header_walking_for_plotting", c.header_walking_for_plotting, D);

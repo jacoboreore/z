@@ -56,7 +56,8 @@ struct Config
 
     double valley_grow = 2e-8;            // factor to add to N to walk the to the valley
     double valley_aggressive_factor = 10; // factor to multply if the step to walk fastee
-    double valley_constant_step = 1000;
+    double valley_constant_step = 0;
+    double valley_constant_step_div = 50;
     double valley_tolerance_to_step = 1;
     double valley_max_step = 1e10;
     double valley_max_Zs_relation = 2;
@@ -81,7 +82,6 @@ struct Config
     // Outputs
     bool walking_output_enabled = true;
     bool walking_for_plotting_enabled = true;
-    bool refine_output_enabled = true;
 
     std::string header_refined = "t,absZ,spacing";
     std::string header_walking = "t,absZ,N";

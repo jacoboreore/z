@@ -1,62 +1,113 @@
-# Load the CSV, plot |Z| vs t with minima markers & vertical lines, plus an optional smoothed curve.
+# Load the CSV, plot |Z| vs t with minima markers & vertical lines, plus hover tooltips.
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 
-# Path provided by the system message
-csv_path = "../output/valley_walk_plot_20251002_210601_pid33196.csv"
+try:
+    import mplcursors
+except ImportError as e:
+    raise SystemExit("Please install mplcursors first: pip install mplcursors") from e
 
-# Read CSV
+csv_path = "../output/valley_walk_plot_20251003_215825_pid36916.csv"
 df = pd.read_csv(csv_path)
 
-# Basic validation of expected columns
-expected_cols = {"t", "absZ"}
-if not expected_cols.issubset(df.columns):
-    raise ValueError(f"CSV must contain columns {expected_cols}. Found: {list(df.columns)}")
+# Expected columns
+if not {"t", "absZ"}.issubset(df.columns):
+    raise ValueError(f"CSV must contain at least columns {{'t','absZ'}}; found {list(df.columns)}")
 
-# Handle optional 'minima' column (create if missing as zeros)
+# Optional columns
 if "minima" not in df.columns:
     df["minima"] = 0
+has_t_str = "t_str" in df.columns
 
-# Build a smoothed series with a centered moving average
+# Choose which numeric series to plot (t as numbers)
+t_num = df["t"].astype(float)
+
+# Smoothing (centered moving average)
 n = len(df)
-# Choose a window ~2% of data length, at least 5 and odd
 win = max(5, int(round(n * 0.02)))
 if win % 2 == 0:
     win += 1
 smooth_absZ = df["absZ"].rolling(window=win, center=True, min_periods=max(3, win//3)).mean()
 
-# Prepare figure
-plt.figure()
+# Build plot
+fig, ax = plt.subplots()
 
-# Raw series
-plt.semilogy(df["t"], df["absZ"], marker='o', linestyle='-')
+# Raw series (capture handle for hover)
+line_raw = ax.semilogy(t_num, df["absZ"], marker='o', linestyle='-')[0]
 
-# Smoothed series (if we have enough points for smoothing to matter)
+# Smoothed overlay (optional)
 if smooth_absZ.notna().sum() > 0:
-    plt.semilogy(df["t"], smooth_absZ, linestyle='--')
+    ax.semilogy(t_num, smooth_absZ, linestyle='--')
 
-# Vertical lines where minima == 1
-minima_mask = (df["minima"] == 1)
-minima_t_values = df.loc[minima_mask, "t"].values
+# Vertical lines at minima
+m = (df["minima"] == 1)
+min_x = t_num[m].to_numpy()
+min_y = df.loc[m, "absZ"].to_numpy()
+for x in min_x:
+    ax.axvline(x=x, linestyle=':')
 
-for x in minima_t_values:
-    plt.axvline(x=x, linestyle=':')  # vertical markers
+# Distinct markers for minima (capture handle for hover)
+line_min = None
+if len(min_x) > 0:
+    line_min = ax.semilogy(min_x, min_y, marker='s', linestyle='')[0]
 
-# Optionally, also mark the points with a distinct marker
-if minima_t_values.size > 0:
-    # Pick the absZ values at those x to place point markers
-    y_vals = df.loc[minima_mask, "absZ"].values
-    plt.semilogy(minima_t_values, y_vals, marker='s', linestyle='')
+# Axis formatting: scientific x labels + top axis with log10(t)
+sf = mticker.ScalarFormatter(useMathText=True)
+sf.set_powerlimits((0, 0))             # force scientific notation
+ax.xaxis.set_major_formatter(sf)
+ax.ticklabel_format(axis='x', style='sci', scilimits=(0, 0))
 
-plt.xlabel("N")
-plt.ylabel("|Z| (log scale)")
-plt.title("Mountains & Valleys: |Z| vs N (raw + smoothed)")
-# plt.grid(True)
+def fwd(x):   # t -> log10(t)
+    with np.errstate(divide='ignore'):
+        return np.log10(x)
+def inv(x):   # log10(t) -> t
+    return 10.0 ** x
+
+secax = ax.secondary_xaxis('top', functions=(fwd, inv))
+secax.set_xlabel('log10(t)')
+secax.xaxis.set_major_locator(mticker.MaxNLocator(6))
+
+ax.set_xlabel("t")
+ax.set_ylabel("|Z|")
+ax.set_title("Mountains & Valleys: |Z| vs t (hover to inspect)")
+ax.grid(True, which='both', axis='y')
 plt.tight_layout()
 
-out_path = "../output/z_plot_semilogy_minima_and_smooth.png"
-plt.savefig(out_path, dpi=150)
-plt.show()
+# --- Hover tooltips ---
+def fmt_label(idx: int) -> str:
+    # Safeguard index bounds
+    if idx < 0 or idx >= len(df):
+        return ""
+    t_label = (str(df.iloc[idx]["t_str"]) if has_t_str and pd.notna(df.iloc[idx]["t_str"])
+               else f"{t_num.iloc[idx]:.6e}")
+    log10_t = np.log10(float(t_num.iloc[idx])) if t_num.iloc[idx] > 0 else float('nan')
+    z = df.iloc[idx]["absZ"]
+    is_min = int(df.iloc[idx]["minima"]) == 1
+    base = f"t = {t_label}\nlog10(t) = {log10_t:.3f}\n|Z| = {z:.3g}"
+    return ("MINIMA\n" + base) if is_min else base
 
-out_path
+# Cursor for the raw line (all points)
+cursor_main = mplcursors.cursor(line_raw, hover=True)
+@cursor_main.connect("add")
+def _on_add(sel):
+    i = int(sel.target.index)
+    sel.annotation.set_text(fmt_label(i))
+    sel.annotation.get_bbox_patch().set(alpha=0.85)
+
+# Cursor for minima markers (subset). Map its point index back to original df index.
+if line_min is not None:
+    min_indices = df.index[m].to_numpy()
+    cursor_min = mplcursors.cursor(line_min, hover=True)
+    @cursor_min.connect("add")
+    def _on_add_min(sel):
+        j = int(sel.target.index)  # index within minima subset
+        i = int(min_indices[j])    # original df row index
+        sel.annotation.set_text(fmt_label(i))
+        sel.annotation.get_bbox_patch().set(alpha=0.9)
+
+out_path = "../output/z_plot_semilogy_minima_hover.png"
+plt.savefig(out_path, dpi=150)
+print(out_path)
+plt.show()

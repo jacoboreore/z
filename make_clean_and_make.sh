@@ -26,6 +26,9 @@ echo "09/29 Constant step formula:  s = sqrt(N) / 10"
 echo "09/30 Progressive refinement 1e-8 1e-10 1e-12"
 echo "09/30 Batch progressive refinement, take t values from file, logs to file"
 echo "09/30 Output files with calculations to AWS S3 if available"
+echo "10/01 Python EC2 trigger"
+echo "10/02 Python plotting, stable.  Graphic of Mountains and valleys"
+echo "10/03 Typos, removing unnecessary config"
 
 echo "-------------------------------------------"
 
