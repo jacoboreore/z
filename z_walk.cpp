@@ -14,6 +14,7 @@
 #include "refine_newton.h"
 #include "refine_newton_thread.h"
 #include "file.h"
+#include "cli.h"
 
 std::mutex print_mutex;
 
@@ -365,7 +366,7 @@ void from_y_walk(mpfr_t start_y)
     }
 }
 
-void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
+void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps, Options opt)
 {
     mpfr_set_default_prec(CFG().mpfr_prec);
     const int max_iters = 10000;
@@ -375,10 +376,10 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps)
     // double newton_tol_step = CFG().newton_tol_step;
 
     // get the file name for this process
-    std::string process_file = zcsv::make_process_filename("output", "valley_walk");
+    std::string process_file = zcsv::make_process_filename("output", "valley_walk_" + opt.job_id);
 
     // get the file name for the valley walking calculation for plotting
-    std::string walk_file = zcsv::make_process_filename("output", "valley_walk_plot");
+    std::string walk_file = zcsv::make_process_filename("output", "valley_walk_plot_" + opt.job_id);
 
     LOGMPF("Process y walk initial params\n---> start_y %.12Rf\n---> Valley count %f\n\n******************\n", start_y, steps);
 

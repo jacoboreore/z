@@ -69,7 +69,7 @@ int main(int argc, char **argv)
     install_crash_handlers();
 
     // Init the logger, always print to the console
-    init_logger("logs", "z", /*also_stdout=*/true);
+    init_logger("logs", "z_log_" + opt.job_id, /*also_stdout=*/true);
     LOGMPF("LOG FOR THIS PROCESS:\n%s", log_filename().c_str());
 
     mpfr_t t;
@@ -101,7 +101,7 @@ int main(int argc, char **argv)
     else if (opt.mode == Options::Mode::Valley_Walk)
     {
         double steps = std::stod(opt.step_str.c_str());
-        from_y_walk_pure_valley_walk(t, steps);
+        from_y_walk_pure_valley_walk(t, steps, opt);
         get_best_t_so_far();
     }
     else if (opt.mode == Options::Mode::Z_ball)
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
         bool ok = false;
 
         // get the file name for this process
-        std::string refine_file = zcsv::make_process_filename("output", "refined");
+        std::string refine_file = zcsv::make_process_filename("output", "refined_" + opt.job_id);
         LOGMPF("Refined values will be in this file: %s", refine_file.c_str());
 
         mpfr_t spacing, prev_t;

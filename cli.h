@@ -16,9 +16,10 @@ struct Options
         Pre_filter,
     } mode;
 
-    std::string t_str;    // raw decimal string for t
-    std::string step_str; // only set for ValleyScanner
-    std::string file_str; // file path or other string to reuse this var
+    std::string t_str;      // raw decimal string for t
+    std::string step_str;   // only set for Valley Walk
+    std::string file_str;   // file path or other string to reuse this var
+    std::string job_id;      // job id to identify logs, outputs, graphics for this job id
     
 };
 

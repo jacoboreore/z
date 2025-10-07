@@ -19,12 +19,9 @@ void print_usage(const char *prog)
 {
     std::cerr
         << "Usage:\n"
-        << "  " << prog << " z <t>\n"
-        << "  " << prog << " valley_scanner <t> <count>\n"
-        << "  " << prog << " refine <t>\n\n"
-        << "Args:\n"
-        << "  <t>     : real number (decimal or scientific), the imaginary part\n"
-        << "  <count>  : number of zeros to calculate\n";
+        << "  " << prog << " z <t> <job id>\n"
+        << "  " << prog << " valley_walk <t> <number of zeros> <job id> \n"
+        << "  " << prog << " refine <t> <job id> \n\n";
 }
 
 bool parse_cli(int argc, char **argv, Options &out)
@@ -49,9 +46,9 @@ bool parse_cli(int argc, char **argv, Options &out)
 
     if (mode == "z" || mode == "z_ball")
     {
-        if (argc != 3)
+        if (argc != 4)
         {
-            std::cerr << "[error] z requires exactly 1 number (t)\n";
+            std::cerr << "[error] z requires exactly 1 number (t) and a string (job_id) \n";
             print_usage(argv[0]);
             return false;
         }
@@ -65,15 +62,13 @@ bool parse_cli(int argc, char **argv, Options &out)
         out.mode = (mode == "z") ? Options::Mode::Z : Options::Mode::Z_ball;
         out.t_str = argv[2];
         out.step_str.clear();
-
-        return true;
     }
     else if (mode == "pre_filter")
     {
 
         if (argc != 3)
         {
-            std::cerr << "[error] z requires exactly 1 number (t)\n";
+            std::cerr << "[error] z requires exactly 1 number (t) and a string (job_id)\n";
             print_usage(argv[0]);
             return false;
         }
@@ -87,14 +82,12 @@ bool parse_cli(int argc, char **argv, Options &out)
         out.mode = Options::Mode::Pre_filter;
         out.t_str = argv[2];
         out.step_str.clear();
-
-        return true;
     }
     else if (mode == "valley_scanner")
     {
-        if (argc != 3)
+        if (argc != 4)
         {
-            std::cerr << "[error] valley_scanner requires 1 number: <t>\n";
+            std::cerr << "[error] valley_scanner requires 1 number (t) and a string (job_id)\n";
             print_usage(argv[0]);
             return false;
         }
@@ -107,14 +100,12 @@ bool parse_cli(int argc, char **argv, Options &out)
 
         out.mode = Options::Mode::Valley_Scanner;
         out.t_str = argv[2];
-
-        return true;
     }
     else if (mode == "valley_walk")
     {
-        if (argc != 4)
+        if (argc != 5)
         {
-            std::cerr << "[error] valley_scanner requires 2 numbers: <t> <step>\n";
+            std::cerr << "[error] valley_scanner requires 2 numbers (t and the number of zeros to calculate) and a string (job_id)\n";
             print_usage(argv[0]);
             return false;
         }
@@ -134,14 +125,12 @@ bool parse_cli(int argc, char **argv, Options &out)
         out.mode = Options::Mode::Valley_Walk;
         out.t_str = argv[2];
         out.step_str = argv[3];
-
-        return true;
     }
     else if (mode == "refine")
     {
-        if (argc != 3)
+        if (argc != 4)
         {
-            std::cerr << "[error] refine requires exactly 1 number (t)\n";
+            std::cerr << "[error] refine requires exactly 1 number (t) and a string (job_id)\n";
             print_usage(argv[0]);
             return false;
         }
@@ -155,14 +144,12 @@ bool parse_cli(int argc, char **argv, Options &out)
         out.mode = Options::Mode::Refine;
         out.t_str = argv[2];
         out.step_str.clear();
-
-        return true;
     }
     else if (mode == "refine_progressive")
     {
-        if (argc != 3)
+        if (argc != 4)
         {
-            std::cerr << "[error] refine requires exactly 1 string [file, full or relative path]]\n";
+            std::cerr << "[error] refine requires exactly 1 string (file, full or relative path) and a string (job_id)\n";
             print_usage(argv[0]);
             return false;
         }
@@ -170,14 +157,12 @@ bool parse_cli(int argc, char **argv, Options &out)
         out.mode = Options::Mode::Refine_Progressive;
         out.file_str = argv[2];
         out.step_str.clear();
-
-        return true;
     }
     else if (mode == "z_os")
     {
-        if (argc != 3)
+        if (argc != 4)
         {
-            std::cerr << "[error] z_os Odlyzko/Schönhage requires 1 numbers: <t> <step>\n";
+            std::cerr << "[error] z_os Odlyzko/Schönhage requires 1 numbers (t) and a string (job_id)\n";
             print_usage(argv[0]);
             return false;
         }
@@ -190,8 +175,6 @@ bool parse_cli(int argc, char **argv, Options &out)
 
         out.mode = Options::Mode::Z_OS;
         out.t_str = argv[2];
-
-        return true;
     }
     else
     {
@@ -199,4 +182,7 @@ bool parse_cli(int argc, char **argv, Options &out)
         print_usage(argv[0]);
         return false;
     }
+
+    out.job_id = argv[argc - 1];
+    return true;
 }

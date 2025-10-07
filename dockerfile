@@ -47,7 +47,7 @@ FROM ubuntu:24.04 AS runtime
 
 # update libs
 RUN apt-get update && apt-get install -y --no-install-recommends                \
-    libgmp10 libmpfr6 libmpc3 libgomp1                                          \
+    libgmp10 libmpfr6 libmpc3 libgomp1                                           \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -26,12 +26,12 @@ sudo apt-get update && sudo apt-get install -y sysstat
 mpstat -P ALL 1
 
 copy src to remote EC2-----------------------------------------------
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@13.221.2.32:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@13.221.2.32:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@13.221.2.32:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@13.221.2.32:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@13.221.2.32:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@13.221.2.32:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@54.224.157.14:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@54.224.157.14:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@54.224.157.14:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@54.224.157.14:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@54.224.157.14:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@54.224.157.14:/home/ubuntu/jacob
 
 
 docker build -t jor_z:native --build-arg NATIVE=1 .
@@ -55,8 +55,7 @@ ps -eo pid,ppid,cmd,%mem,rss,vsz --sort=-rss | head -n 20
 
 ------------
 
-# Replace 'z_calc' with your binary name:
-PID=$(pgrep -n z_calc)
+PID=$(pgrep -n z)
 
 # System view
 vmstat 1
@@ -73,10 +72,6 @@ pidstat -r -p $PID 1
 # Or log to file:
 pidstat -r -p $PID 1 > /tmp/mem_pidstat.log
 
-
-
-
-
 -----------------------------------------------------------------------------
 
 sudo apt-get update && sudo apt-get -y install docker.io
@@ -88,3 +83,67 @@ sudo apt-get update && sudo apt-get install -y sysstat
 sudo apt-get install -y \
   build-essential g++ make pkg-config git curl ca-certificates \
   libgmp-dev libmpfr-dev libmpc-dev libgomp1
+
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+
+lambda additional role
+
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "EC2Control",
+			"Effect": "Allow",
+			"Action": [
+				"ec2:RunInstances",
+				"ec2:DescribeInstances",
+				"ec2:TerminateInstances",
+				"ec2:CreateTags",
+				"ec2:DescribeVpcs",
+				"ec2:DescribeSubnets",
+				"ec2:DescribeSecurityGroups"
+			],
+			"Resource": "*"
+		},
+		{
+			"Sid": "PassInstanceRole",
+			"Effect": "Allow",
+			"Action": [
+				"iam:PassRole"
+			],
+			"Resource": "arn:aws:iam::407875882825:role/z-batch-runner"
+		},
+		{
+			"Sid": "Logs",
+			"Effect": "Allow",
+			"Action": [
+				"logs:CreateLogGroup",
+				"logs:CreateLogStream",
+				"logs:PutLogEvents"
+			],
+			"Resource": "*"
+		},
+		{
+			"Sid": "S3ReadJobs",
+			"Effect": "Allow",
+			"Action": [
+				"s3:GetObject",
+				"s3:ListBucket"
+			],
+			"Resource": [
+				"arn:aws:s3:::$S3_BUCKET",
+				"arn:aws:s3:::$S3_BUCKET/jobs/*"
+			],
+			"Condition": {
+				"StringLike": {
+					"s3:prefix": [
+						"jobs/*"
+					]
+				}
+			}
+		}
+	]
+}

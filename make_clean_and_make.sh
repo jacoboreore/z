@@ -29,6 +29,8 @@ echo "09/30 Output files with calculations to AWS S3 if available"
 echo "10/01 Python EC2 trigger"
 echo "10/02 Python plotting, stable.  Graphic of Mountains and valleys"
 echo "10/03 Typos, removing unnecessary config"
+echo "10/04 Adding job_id to outputs"
+echo "10/06 AWS work: batch launcher, monitor, cancel (major adding)"
 
 echo "-------------------------------------------"
 
