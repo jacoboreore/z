@@ -1,0 +1,11 @@
+aws cloudformation deploy \
+  --template-file z-cloud-formation-api-gateway.yml \
+  --stack-name z-httpapi \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    StackNamePrefix=z-app \
+    LoginLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_lambda_login \
+    StartBatchLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_lambda_batch \
+    GetStatusLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_lambda_monitor \
+    UserPoolId=us-east-1_TnrlRK2rx \  # leave empty "" if you don't want JWT auth yet
+ 

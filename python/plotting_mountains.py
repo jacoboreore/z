@@ -1,4 +1,3 @@
-# Load the CSV, plot |Z| vs t with minima markers & vertical lines, plus hover tooltips.
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,7 +8,7 @@ try:
 except ImportError as e:
     raise SystemExit("Please install mplcursors first: pip install mplcursors") from e
 
-csv_path = "../output/valley_walk_plot_20251003_215825_pid36916.csv"
+csv_path = "../output/valley_walk_plot_f53fc613-651d-4a81-aa22-557d98a2b6ed_20251007_025802_pid1540.csv"
 df = pd.read_csv(csv_path)
 
 # Expected columns

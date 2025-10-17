@@ -3,20 +3,6 @@ import os, json, base64, uuid, boto3
 
 EC2 = boto3.client("ec2")
 
-# ----- set env vars the Lambda expects -----
-# os.environ["SUBNET_ID"]             = "subnet-084d809e9bb9891bc"
-# os.environ["SECURITY_GROUP_ID"]     = "sg-0a4c92ac491102653"
-# os.environ["INSTANCE_PROFILE_NAME"] = "z-batch-runner"
-# os.environ["S3_BUCKET"]             = "jacob-z"
-# os.environ["AWS_REGION"]            = "us-east-1"      # or your region
-
-# # Optional autosize + spot + dry-run
-# os.environ["INSTANCE_TYPE_SMALL"]   = "c7i.2xlarge"    # ~8 vCPU
-# os.environ["INSTANCE_TYPE_LARGE"]   = "c7i.16xlarge"   # ~64 vCPU
-# os.environ["T_THRESHOLD"]           = "1e14"
-# os.environ["USE_SPOT"]              = "false"
-# os.environ["DRY_RUN"]               = "true"           # first run: permission check only
-
 # --- Required env vars ---
 SUBNET_ID             = os.environ.get("SUBNET_ID")
 SECURITY_GROUP_ID     = os.environ["SECURITY_GROUP_ID"]
@@ -33,7 +19,7 @@ USE_SPOT              = os.environ.get("USE_SPOT", "false").lower() == "true"
 def _pick_instance_type(t_val: float) -> str:
     return INSTANCE_TYPE_LARGE if t_val >= T_THRESHOLD else INSTANCE_TYPE_SMALL
 
-def handler(event, context):
+def lambda_handler(event, context):
     # Expect {"image": "ami-...", "t": <number|string>}
     body = event.get("body")
     if isinstance(body, str):
@@ -43,14 +29,20 @@ def handler(event, context):
 
     image = body.get("image")
     t     = body.get("t")
+    zeros = body.get("zeros")
 
-    if not image or t is None:
-        return {"statusCode": 400, "body": json.dumps({"error": "image and t are required"})}
+    if not image or t is None or zeros is None:
+        return {"statusCode": 400, "body": json.dumps({"error": "image, zeros and t are required"})}
 
     try:
         t_val = float(t)
     except Exception:
         return {"statusCode": 400, "body": json.dumps({"error": "t must be numeric"})}
+
+    try:
+        zeros_val = float(zeros)
+    except Exception:
+        return {"statusCode": 400, "body": json.dumps({"error": "zeros must be numeric"})}
 
     job_id = str(uuid.uuid4())
     instance_type = _pick_instance_type(t_val)
@@ -61,6 +53,7 @@ exec > /var/log/user-data.log 2>&1
 
 JOB_ID="{job_id}"
 T_VAL="{t_val}"
+ZEROS_VAL="{zeros_val}"
 BUCKET="{S3_BUCKET}"
 PREFIX="jobs/$JOB_ID"
 
@@ -68,15 +61,7 @@ PREFIX="jobs/$JOB_ID"
 USR="ubuntu"
 id ubuntu >/dev/null 2>&1 || USR="ec2-user"
 
-# Ensure awscli + jq
-# if ! command -v aws >/dev/null 2>&1; then
-#   if command -v apt-get >/dev/null 2>&1; then
-#     apt-get update -y || true
-#     DEBIAN_FRONTEND=noninteractive apt-get install -y awscli jq || true
-#   elif command -v yum >/dev/null 2>&1; then
-#     yum install -y awscli jq || true
-#   fi
-# fi
+# AWSCLI IS ALREADY INSTALLED IN THE INSTANCE, THEN AN IMAGE WAS GENERATED
 
 # Workspace
 mkdir -p /home/$USR/jacob/output || true
@@ -88,10 +73,16 @@ chown -R $USR:$USR /home/$USR || true
 
 cd /home/$USR/jacob || exit 1
 set +e
-sudo -u $USR /home/$USR/jacob/bin/z valley_walk "$T_VAL" 10 $JOB_ID >&1 | tee -a /home/$USR/jacob/output/run.log
+sudo -u $USR /home/$USR/jacob/bin/z valley_walk "$T_VAL" "$ZEROS_VAL" $JOB_ID >&1 | tee -a /home/$USR/jacob/output/run.log
 RC=${{PIPESTATUS[0]}}
 set -e
 
+#######################################################################
+######################## Plotting #####################################
+#######################################################################
+
+latest=$(find output -maxdepth 1 -type f -name '*walk_plot*.csv' -printf '%T@ %p\n' | sort -nr | head -n1 | cut -d' ' -f2-)
+[ -n "$latest" ] && python3 plotting_mountains.py "$latest" || echo "No CSVs in output/"
 
 #######################################################################
 ##################### S3 reports and work #############################

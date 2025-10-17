@@ -69,4 +69,5 @@ ENTRYPOINT ["/bin/bash"]
 ############################
 # docker build -t jor_z:native --build-arg NATIVE=1 .
 # docker tag jor_z:native jacobore/jor_z:native
-# 
+# docker run --rm -e OMP_NUM_THREADS -e OMP_PROC_BIND -e OMP_PLACES jacobore/jor_z:native /app/run.sh z 1122334455667788.758122007832190107859999875437
+# docker run --rm -e OMP_NUM_THREADS=4 -e OMP_PROC_BIND=close -e OMP_PLACES jacobore/jor_z:native /app/run.sh z 4400112233445565.831381180135852831954333609817

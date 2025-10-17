@@ -286,7 +286,7 @@ int main(int argc, char **argv)
 
     mpfr_clear(t);
 
-    mpfr_set_default_prec(CFG().mpfr_prec);
+    LOGMPF("JOB_DONE");
 
     // sanity close for the log
     shutdown_logger();

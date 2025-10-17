@@ -1,0 +1,7 @@
+aws cloudformation deploy \
+  --template-file z-cloud-formation.yml \
+  --stack-name z-cognito \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    StackNamePrefix=z-app \
+    LoginLambdaRoleName=z_lambda_login-role-uj9acm6d

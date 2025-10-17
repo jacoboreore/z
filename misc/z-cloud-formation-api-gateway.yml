@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: HTTP API routing to multiple Lambdas + optional Cognito authorizer + optional custom domain
+
+Parameters:
+  StackNamePrefix:
+    Type: String
+    Default: z-app
+  LoginLambdaArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:407875882825:function:z_lambda_login
+    Description: ARN of the Login Lambda (returns tokens)
+  StartBatchLambdaArn:
+    Type: String 
+    Default: arn:aws:lambda:us-east-1:407875882825:function:z_lambda_batch
+    Description: ARN of the Lambda that starts the batch
+  GetStatusLambdaArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:407875882825:function:z_lambda_monitor
+    Description: ARN of the Lambda that returns batch status
+  UserPoolId:
+    Type: String
+    Description: Cognito User Pool ID (for authorizer). If empty, authorizer is skipped.
+    Default: us-east-1_TnrlRK2rx
+  CustomDomainName:
+    Type: String
+    Description: Optional custom domain for the API (e.g., api.jacob-z-app.com). Leave blank to skip.
+    Default: ""
+  AcmCertificateArn:
+    Type: String
+    Description: ACM certificate ARN in the SAME REGION as the API (for the custom domain). Leave blank to skip.
+    Default: ""
+  AppClientId:                 
+    Type: String
+    Default: "48o0e0bfclhkkcnuc9sjrdmimn"                
+
+Conditions:
+  UseAuthorizer: !Not [ !Equals [ !Ref UserPoolId, "" ] ]
+  UseCustomDomain: !And
+    - !Not [ !Equals [ !Ref CustomDomainName, "" ] ]
+    - !Not [ !Equals [ !Ref AcmCertificateArn, "" ] ]
+    - !Not [ !Equals [ !Ref AppClientId, "" ] ]
+
+Resources:
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${StackNamePrefix}-httpapi"
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowHeaders: ["Content-Type", "Authorization"]
+        AllowMethods: ["GET","POST","OPTIONS"]
+        MaxAge: 86400
+
+  StageProd:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: prod
+      AutoDeploy: true
+
+  # --- Cognito Authorizer (optional) ---
+  CognitoAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Condition: UseAuthorizer
+    Properties:
+      ApiId: !Ref HttpApi
+      AuthorizerType: JWT
+      IdentitySource:
+        - "$request.header.Authorization"
+      Name: !Sub "${StackNamePrefix}-cognito-auth"
+      JwtConfiguration:
+        Audience:  [ !Ref AppClientId ]                    
+        Issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPoolId}"
+
+  # --- Integrations ---
+  IntLogin:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Ref LoginLambdaArn
+      PayloadFormatVersion: "2.0"
+
+  IntStartBatch:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Ref StartBatchLambdaArn
+      PayloadFormatVersion: "2.0"
+
+  IntGetStatus:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Ref GetStatusLambdaArn
+      PayloadFormatVersion: "2.0"
+
+  # --- Routes ---
+  RouteLoginPost:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /login"
+      Target: !Sub "integrations/${IntLogin}"
+
+  RouteArtifactGet:   # if you want your /artifact-url via API GW instead of direct Lambda URL
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /artifact-url"
+      Target: !Sub "integrations/${IntLogin}"  # same login lambda handles /artifact-url in code
+
+  RouteStartBatchPost:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /batch"
+      Target: !Sub "integrations/${IntStartBatch}"
+      AuthorizationType: !If [ UseAuthorizer, JWT, NONE ]
+      AuthorizerId: !If [ UseAuthorizer, !Ref CognitoAuthorizer, !Ref "AWS::NoValue" ]
+
+  RouteGetStatusGet:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /status"
+      Target: !Sub "integrations/${IntGetStatus}"
+      AuthorizationType: !If [ UseAuthorizer, JWT, NONE ]
+      AuthorizerId: !If [ UseAuthorizer, !Ref CognitoAuthorizer, !Ref "AWS::NoValue" ]
+
+  # --- Lambda permissions so API Gateway can invoke them ---
+  PermLogin:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LoginLambdaArn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/login"
+
+  PermArtifact:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LoginLambdaArn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/artifact-url"
+
+  PermStartBatch:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StartBatchLambdaArn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/batch"
+
+  PermGetStatus:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GetStatusLambdaArn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/status"
+
+  # --- Custom domain (optional) ---
+  ApiDomainName:
+    Type: AWS::ApiGatewayV2::DomainName
+    Condition: UseCustomDomain
+    Properties:
+      DomainName: !Ref CustomDomainName
+      DomainNameConfigurations:
+        - CertificateArn: !Ref AcmCertificateArn
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  ApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Condition: UseCustomDomain
+    Properties:
+      ApiId: !Ref HttpApi
+      DomainName: !Ref ApiDomainName
+      Stage: !Ref StageProd
+      ApiMappingKey: ""      # base path; put "v1" if you want /v1/...
+
+Outputs:
+  ApiInvokeUrl:
+    Description: Base invoke URL (no custom domain)
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageProd}"
+  CustomApiUrl:
+    Condition: UseCustomDomain
+    Description: Custom domain base URL
+    Value: !Sub "https://${CustomDomainName}"

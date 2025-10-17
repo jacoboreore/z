@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Cognito User Pool + App Client + IAM policy for login Lambda (admin auth)
+
+Parameters:
+  StackNamePrefix:
+    Type: String
+    Default: z-app
+    Description: Prefix for named resources
+  LoginLambdaRoleName:
+    Type: String
+    Description: Existing IAM role name used by your LOGIN Lambda (not the function name)
+  AccessTokenValidityHours:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 24
+  IdTokenValidityHours:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 24
+  RefreshTokenValidityDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 3650
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${StackNamePrefix}-user-pool"
+      UsernameAttributes: ["email"] # email as username
+      AutoVerifiedAttributes: ["email"]
+      MfaConfiguration: "OFF"
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: "verified_email"
+            Priority: 1
+      #DeletionProtection: ACTIVE               # protect from oops deletes (optional)
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub "${StackNamePrefix}-app-client"
+      GenerateSecret: false # front-ends & admin auth don't need a secret
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: !Ref AccessTokenValidityHours
+      IdTokenValidity: !Ref IdTokenValidityHours
+      RefreshTokenValidity: !Ref RefreshTokenValidityDays
+      TokenValidityUnits:
+        AccessToken: "hours"
+        IdToken: "hours"
+        RefreshToken: "days"
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      # If you plan on hosted UI later, add OAuth config  callback URLs here.
+
+  # --- IAM: let your existing LOGIN Lambda ROLE call the needed Cognito APIs ---
+  LoginLambdaCognitoPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${StackNamePrefix}-login-lambda-cognito-policy"
+      Roles: [!Ref LoginLambdaRoleName]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Admin* calls can be resource-scoped to the pool
+          - Effect: Allow
+            Action:
+              - cognito-idp:AdminCreateUser
+              - cognito-idp:AdminGetUser
+              - cognito-idp:AdminSetUserPassword
+              - cognito-idp:AdminInitiateAuth
+            Resource: !Sub "arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}"
+          # GetUser does not support resource-level permissions -> must be "*"
+          - Effect: Allow
+            Action:
+              - cognito-idp:GetUser
+            Resource: "*"
+
+Outputs:
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolId"
+  AppClientId:
+    Description: Cognito App Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-AppClientId"
+  LoginLambdaAttachedPolicy:
+    Description: IAM policy attached to your login Lambda role
+    Value: !Ref LoginLambdaCognitoPolicy

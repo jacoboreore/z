@@ -10,7 +10,7 @@ MPREAL_INC ?= mpreal
 CPPFLAGS += -DMPFR_USE_NO_MACRO -DMPFR_USE_INTMAX_T \
             -I$(MPREAL_INC) -include stdint.h
 CXXFLAGS += -O3 -march=native -mtune=native -std=c++20 -MMD -MP -fopenmp $(CPPFLAGS)
-LDFLAGS  += -pthread -fopenmp
+LDFLAGS  += -pthread
 LIBS     += -lmpc -lmpfr -lgmp -fopenmp -lstdc++fs
 
 # Debug / tracing

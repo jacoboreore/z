@@ -1,12 +1,4 @@
-# Install Docker (Ubuntu) -----------------------------------------
-sudo apt-get update && sudo apt-get -y install docker.io
-sudo usermod -aG docker $USER && newgrp docker
-
-# Install MPFR and runtime
-
-native build--------------------------------------------------------
-scp -i /path/to/your-key-pair.pem /path/to/local/file.txt user@ec2-instance-public-dns:/path/on/ec2/instance/
-
+native build DOCKER--------------------------------------------------------
 docker run --rm -e OMP_NUM_THREADS -e OMP_PROC_BIND -e OMP_PLACES jacobore/jor_z:native /app/run.sh z 1122334455667788.758122007832190107859999875437
 docker run --rm -e OMP_NUM_THREADS=4 -e OMP_PROC_BIND=close -e OMP_PLACES jacobore/jor_z:native /app/run.sh z 4400112233445565.831381180135852831954333609817
 
@@ -26,23 +18,20 @@ sudo apt-get update && sudo apt-get install -y sysstat
 mpstat -P ALL 1
 
 copy src to remote EC2-----------------------------------------------
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@54.224.157.14:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@54.224.157.14:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@54.224.157.14:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@54.224.157.14:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@54.224.157.14:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@54.224.157.14:/home/ubuntu/jacob
 
-
-docker build -t jor_z:native --build-arg NATIVE=1 .
-
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@52.91.66.154:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@52.91.66.154:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@52.91.66.154:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@52.91.66.154:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@52.91.66.154:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@52.91.66.154:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.py  ubuntu@52.91.66.154:/home/ubuntu/jacob
 
 $ test cores
 
 for t in 4 6 8; do OMP_NUM_THREADS=$t numactl -N0 -m0 ./bin/z z 1e18; done
 
-----------------------------------------------------------------------------
-# mem assessing
+mem assessing----------------------------------------------------------------------------
 
 # System-wide snapshot
 free -h
@@ -51,7 +40,6 @@ cat /proc/meminfo | head -n 25
 
 # Top processes by RSS
 ps -eo pid,ppid,cmd,%mem,rss,vsz --sort=-rss | head -n 20
-
 
 ------------
 
@@ -72,17 +60,30 @@ pidstat -r -p $PID 1
 # Or log to file:
 pidstat -r -p $PID 1 > /tmp/mem_pidstat.log
 
------------------------------------------------------------------------------
+DOCKER-----------------------------------------------------------------------------
 
 sudo apt-get update && sudo apt-get -y install docker.io
 sudo usermod -aG docker $USER && newgrp docker
+sudo yum install java docker postgresql15 -y
+sudo systemctl start docker.service
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
 
-Install stats
-sudo apt-get update && sudo apt-get install -y sysstat
 
+GCC & MPFR ------------------------------------------------------------------------
 sudo apt-get install -y \
   build-essential g++ make pkg-config git curl ca-certificates \
   libgmp-dev libmpfr-dev libmpc-dev libgomp1
+
+AWS cli------------------------------------------------------------
+
+sudo apt update
+sudo apt install -y unzip curl
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+aws --version
+rm -rf awscliv2.zip aws
 
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
@@ -147,3 +148,5 @@ lambda additional role
 		}
 	]
 }
+
+
