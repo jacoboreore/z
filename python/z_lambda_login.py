@@ -82,60 +82,62 @@ def lambda_handler(event, context):
     method = event.get("httpMethod", "GET")
     path = event.get("path", "/")
 
+    logger.info(f"PATH EVENT {path}")
+
     if method == "OPTIONS":
         return _json(200, {"ok": True})
 
     try:
-        if path.endswith("/login") and method == "POST":
-            try:
-                payload = json.loads(event.get("body") or "{}")
-            except json.JSONDecodeError:
-                return _json(400, {"error": "invalid_json"})
+        # if path.endswith("/login") and method == "POST":
+        try:
+            payload = json.loads(event.get("body") or "{}")
+        except json.JSONDecodeError:
+            return _json(400, {"error": "invalid_json"})
 
-            email = (payload.get("email") or "").strip()
-            password = payload.get("password") or ""
-            if not email or not password:
-                return _json(400, {"error": "email and password required"})
+        email = (payload.get("email") or "").strip()
+        password = payload.get("password") or ""
+        if not email or not password:
+            return _json(400, {"error": "email and password required"})
 
-            expected = ALLOWLIST.get(email)
-            if expected is None or expected != password:
-                return _json(401, {"error": "invalid credentials"})
+        expected = ALLOWLIST.get(email)
+        if expected is None or expected != password:
+            return _json(401, {"error": "invalid credentials"})
 
-            _ensure_user(email)
-            # Set/Reset password permanent
-            cognito.admin_set_user_password(
-                UserPoolId=USER_POOL_ID, Username=email, Password=password, Permanent=True
-            )
+        _ensure_user(email)
+        # Set/Reset password permanent
+        cognito.admin_set_user_password(
+            UserPoolId=USER_POOL_ID, Username=email, Password=password, Permanent=True
+        )
 
-            tokens = _admin_auth(email, password)
-            return _json(200, {"email": email, "tokens": tokens})
+        tokens = _admin_auth(email, password)
+        return _json(200, {"email": email, "tokens": tokens})
 
-        if path.endswith("/artifact-url") and method == "GET":
-            access_token = _bearer(event)
-            if not access_token:
-                return _json(401, {"error": "missing bearer token"})
-            try:
-                me = cognito.get_user(AccessToken=access_token)
-            except ClientError as e:
-                logger.warning("token validation failed: %s", e)
-                return _json(401, {"error": "invalid token"})
+        # if path.endswith("/artifact-url") and method == "GET":
+        #     access_token = _bearer(event)
+        #     if not access_token:
+        #         return _json(401, {"error": "missing bearer token"})
+        #     try:
+        #         me = cognito.get_user(AccessToken=access_token)
+        #     except ClientError as e:
+        #         logger.warning("token validation failed: %s", e)
+        #         return _json(401, {"error": "invalid token"})
 
-            # Decide what key to serve; demo uses a static key
-            key = DEFAULT_ARTIFACT_KEY
-            try:
-                url = S3.generate_presigned_url(
-                    ClientMethod="get_object",
-                    Params={"Bucket": ARTIFACTS_BUCKET, "Key": key},
-                    ExpiresIn=300,
-                )
-            except ClientError as e:
-                logger.error("presign failed: %s", e)
-                return _json(500, {"error": "presign_failed"})
+        #     # Decide what key to serve; demo uses a static key
+        #     key = DEFAULT_ARTIFACT_KEY
+        #     try:
+        #         url = S3.generate_presigned_url(
+        #             ClientMethod="get_object",
+        #             Params={"Bucket": ARTIFACTS_BUCKET, "Key": key},
+        #             ExpiresIn=300,
+        #         )
+        #     except ClientError as e:
+        #         logger.error("presign failed: %s", e)
+        #         return _json(500, {"error": "presign_failed"})
 
-            email_attr = next((a["Value"] for a in me.get("UserAttributes", []) if a.get("Name") == "email"), None)
-            return _json(200, {"email": email_attr, "url": url, "key": key, "expiresInSeconds": 300})
+        #     email_attr = next((a["Value"] for a in me.get("UserAttributes", []) if a.get("Name") == "email"), None)
+        #     return _json(200, {"email": email_attr, "url": url, "key": key, "expiresInSeconds": 300})
 
-        return _json(404, {"error": "not found"})
+        #return _json(404, {"error": "not found"})
 
     except ClientError as e:
         logger.exception("AWS error")
