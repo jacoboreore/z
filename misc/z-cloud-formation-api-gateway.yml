@@ -17,6 +17,10 @@ Parameters:
     Type: String
     Default: arn:aws:lambda:us-east-1:407875882825:function:z_lambda_monitor
     Description: ARN of the Lambda that returns batch status
+  ListArtifactsArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:407875882825:function:z_lambda_list_artifacts
+    Description: ARN of the Lambda that returns all objects in S3
   UserPoolId:
     Type: String
     Description: Cognito User Pool ID (for authorizer). If empty, authorizer is skipped.
@@ -98,6 +102,14 @@ Resources:
       IntegrationUri: !Ref GetStatusLambdaArn
       PayloadFormatVersion: "2.0"
 
+  IntListArtifacts:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Ref ListArtifactsArn
+      PayloadFormatVersion: "2.0"
+      
   # --- Routes ---
   RouteLoginPost:
     Type: AWS::ApiGatewayV2::Route
@@ -106,12 +118,14 @@ Resources:
       RouteKey: "POST /login"
       Target: !Sub "integrations/${IntLogin}"
 
-  RouteArtifactGet:   # if you want your /artifact-url via API GW instead of direct Lambda URL
+  RouteListArtifacts:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "GET /artifact-url"
-      Target: !Sub "integrations/${IntLogin}"  # same login lambda handles /artifact-url in code
+      RouteKey: "POST /artifacts"
+      Target: !Sub "integrations/${IntListArtifacts}"
+      AuthorizationType: !If [ UseAuthorizer, JWT, NONE ]
+      AuthorizerId: !If [ UseAuthorizer, !Ref CognitoAuthorizer, !Ref "AWS::NoValue" ]
 
   RouteStartBatchPost:
     Type: AWS::ApiGatewayV2::Route
@@ -144,9 +158,9 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref LoginLambdaArn
+      FunctionName: !Ref ListArtifactsArn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/artifact-url"
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/artifacts"
 
   PermStartBatch:
     Type: AWS::Lambda::Permission

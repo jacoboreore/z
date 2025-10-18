@@ -25,11 +25,14 @@ except json.JSONDecodeError:
     ALLOWLIST = {}
 
 if not ALLOWLIST:
-    ALLOWLIST = {
-        "alice@example.com": "Alice-Temp#123",
-        "bob@example.com": "Bob-Temp#456",
-        "carol@example.com": "Carol-Temp#789",
-    }
+    logger.error(f"Allowed users not set")
+
+# uncomment for testing
+#     ALLOWLIST = {
+#         "alice@example.com": "Alice-Temp#123",
+#         "bob@example.com": "Bob-Temp#456",
+#         "carol@example.com": "Carol-Temp#789",
+#     }
 
 cognito = boto3.client("cognito-idp", region_name=REGION)
 S3 = boto3.client("s3", region_name=REGION)

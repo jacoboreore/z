@@ -7,5 +7,6 @@ aws cloudformation deploy \
     LoginLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_lambda_login \
     StartBatchLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_lambda_batch \
     GetStatusLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_lambda_monitor \
-    UserPoolId=us-east-1_TnrlRK2rx \  # leave empty "" if you don't want JWT auth yet
+    ListArtifactsArn=arn:aws:lambda:us-east-1:407875882825:function:z_lambda_list_artifacts \
+    UserPoolId=us-east-1_TnrlRK2rx   # leave empty "" if you don't want JWT auth
  
