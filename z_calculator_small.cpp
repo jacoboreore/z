@@ -135,7 +135,7 @@ static void zeta_via_eta(
 
 // ------------------------------------------------------------
 // Z(t) = Re( e^{iθ(t)} ζ(1/2 + i t) )
-// Use η(s) from above and θ from your Stirling wrapper for now.
+// Use η(s) from above and θ from the Stirling wrapper.
 // ------------------------------------------------------------
 void compute_Z_small(mpfr_t Z, const mpfr_t t)
 {

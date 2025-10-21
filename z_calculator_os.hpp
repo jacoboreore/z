@@ -150,12 +150,13 @@ namespace osvalley
     // ---- OS ratio + step suggestion for valley scanning ----
     // Inputs:
     //   block : OS block (t0, dt, vectors t, Z, F)
-    //   t_cur : your current t
-    //   spacing : local zero spacing ~ pi / log(t/2pi) (use your est_spacing())
+    //   t_cur : current t
+    //   spacing : local zero spacing ~ pi / log(t/2pi) 
     //   R_target : desired improvement factor |Z0|/|Z1| (e.g., 5.0)
     //   cfg clamps: s_min_frac, s_max_frac (fractions of spacing), g_floor
     // Output:
     //   step suggestion, observed ratio from OS samples, and flip detection
+
     struct OSRatioStep
     {
         osvalley::Real dt_suggest{}; // signed Δt (direction to move)
@@ -723,7 +724,6 @@ namespace osquick
         // verdict: any of these means "near enough"
         ev.is_near = (ev.absZc <= absZ_tol) || ev.has_flip || (ev.ratio <= ratio_tol) || (ev.min_absZ <= absZ_tol);
 
-        // step suggestion (for your scanner to “home in” quickly)
         ev.suggested_step = -ev.dt_pred;
 
         return ev;

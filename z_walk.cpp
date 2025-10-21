@@ -376,10 +376,10 @@ void from_y_walk_pure_valley_walk(mpfr_t start_y, const double steps, Options op
     // double newton_tol_step = CFG().newton_tol_step;
 
     // get the file name for this process
-    std::string process_file = zcsv::make_process_filename("output", "valley_walk_" + opt.job_id);
+    std::string process_file = zcsv::make_process_filename("output", "valley_walk");
 
     // get the file name for the valley walking calculation for plotting
-    std::string walk_file = zcsv::make_process_filename("output", "valley_walk_plot_" + opt.job_id);
+    std::string walk_file = zcsv::make_process_filename("output", "valley_walk_plot");
 
     LOGMPF("Process y walk initial params\n---> start_y %.12Rf\n---> Valley count %f\n\n******************\n", start_y, steps);
 

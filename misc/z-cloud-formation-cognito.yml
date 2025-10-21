@@ -71,9 +71,7 @@ Resources:
         RefreshToken: "days"
       PreventUserExistenceErrors: ENABLED
       EnableTokenRevocation: true
-      # If you plan on hosted UI later, add OAuth config  callback URLs here.
 
-  # --- IAM: let your existing LOGIN Lambda ROLE call the needed Cognito APIs ---
   LoginLambdaCognitoPolicy:
     Type: AWS::IAM::Policy
     Properties:

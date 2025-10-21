@@ -697,7 +697,7 @@ static void R_gabcke(mpfr_t R, const mpfr_t t, mpfr_prec_t P,
         mpfr_div(C1, psi3, C1, MPFR_RNDN);
         mpfr_neg(C1, C1, MPFR_RNDN);
 
-        // C2 = ψ^{(6)}/(18432π^4) + ψ''/(64π^2)   (kept exactly as your stable version)
+        // C2 = ψ^{(6)}/(18432π^4) + ψ''/(64π^2)   
         mpfr_t C2, term1, term2, denom;
         mpfr_inits2(P, C2, term1, term2, denom, (mpfr_ptr)0);
 

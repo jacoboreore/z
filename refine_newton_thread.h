@@ -8,7 +8,6 @@
 //  - tol_step: stop if |Δt|  <= tol_step
 // max_iter: hard cap on iterations (e.g. 2)
 // use_threaded_z: if tru3, use compute_Z_threaded where beneficial.
-//
 
 bool newton_refine_root_thread(
     mpfr_t t_out,

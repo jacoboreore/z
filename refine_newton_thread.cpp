@@ -731,7 +731,7 @@ bool newton_refine_root_thread(
                 mpfr_clear(z_br);
             }
 
-            // No bracketed help? fall back to your original nudge/step
+            // No bracketed help? fall back to the original nudge/step
             if (!descent_nudge(t, use_threaded_z, cache))
             {
                 mpfr_sub(t, t, delta, MPFR_RNDN);

@@ -72,7 +72,8 @@ namespace zcsv
         std::strftime(tb, sizeof(tb), "%Y%m%d_%H%M%S", &tm);
 
         std::ostringstream oss;
-        oss << prefix << "_" << tb << "_pid" << current_pid() << ".csv";
+        //oss << prefix << "_" << tb << "_pid" << current_pid() << ".csv";
+        oss << prefix << ".csv"; // simple file name
 
         return (fs::path(dir) / oss.str()).string();
     }

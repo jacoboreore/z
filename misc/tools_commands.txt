@@ -19,13 +19,13 @@ mpstat -P ALL 1
 
 copy src to remote EC2-----------------------------------------------
 
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@52.91.66.154:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@52.91.66.154:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@52.91.66.154:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@52.91.66.154:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@52.91.66.154:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@52.91.66.154:/home/ubuntu/jacob
-pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.py  ubuntu@52.91.66.154:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.h  ubuntu@35.174.10.7:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.cpp  ubuntu@35.174.10.7:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\*.hpp  ubuntu@35.174.10.7:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk D:\msys64\home\jacob\p\z_from_n\makefile  ubuntu@35.174.10.7:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\conf  ubuntu@35.174.10.7:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.sh  ubuntu@35.174.10.7:/home/ubuntu/jacob
+pscp -i jacob-key-pair-all-EC2.ppk -r D:\msys64\home\jacob\p\z_from_n\*.py  ubuntu@35.174.10.7:/home/ubuntu/jacob
 
 $ test cores
 

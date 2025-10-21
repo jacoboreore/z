@@ -196,7 +196,7 @@ Resources:
       ApiId: !Ref HttpApi
       DomainName: !Ref ApiDomainName
       Stage: !Ref StageProd
-      ApiMappingKey: ""      # base path; put "v1" if you want /v1/...
+      ApiMappingKey: ""      # base path; "v1" if /v1/...
 
 Outputs:
   ApiInvokeUrl:

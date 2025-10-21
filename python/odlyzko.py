@@ -239,12 +239,12 @@ def Z_block_OS(T, K=64, h=mp.mpf('0.05'), dps=80, block_alpha=mp.mpf('0.66'),
 # Demo / quick check
 # ----------------------------
 if __name__ == "__main__":
-    mp.mp.dps = 60
-    T  = mp.mpf('440012345677')      # demo scale; raise with care
+    mp.mp.dps = 256
+    T  = mp.mpf('88888888898.2973446644705945344')      # demo scale; raise with care
     K  = 8
     h  = mp.mpf('0.1')
 
-    ts, Zs = Z_block_OS(T, K=K, h=h, dps=60, block_alpha=mp.mpf('0.66'),
+    ts, Zs = Z_block_OS(T, K=K, h=h, dps=256, block_alpha=mp.mpf('0.66'),
                         phase_order=2, amp_order=2, include_R1=True)
 
     print("OS-block demo:")

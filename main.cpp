@@ -156,7 +156,7 @@ int main(int argc, char **argv)
         bool ok = false;
 
         // get the file name for this process
-        std::string refine_file = zcsv::make_process_filename("output", "refined_" + opt.job_id);
+        std::string refine_file = zcsv::make_process_filename("output", "refined");
         LOGMPF("Refined values will be in this file: %s", refine_file.c_str());
 
         mpfr_t spacing, prev_t;
