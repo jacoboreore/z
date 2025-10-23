@@ -14,10 +14,19 @@ INSTANCE_PROFILE_NAME = os.environ["INSTANCE_PROFILE_NAME"]
 S3_BUCKET             = os.environ["S3_BUCKET"]
 AWS_REGION            = os.environ.get("AWS_REGION", "us-east-1")
 
-# --- Optional autosize and options ---
+# --- autosize CPU ---
 INSTANCE_TYPE_SMALL   = os.environ.get("INSTANCE_TYPE_SMALL", "c7i.8xlarge")
 INSTANCE_TYPE_LARGE   = os.environ.get("INSTANCE_TYPE_LARGE", "c7i.16xlarge")
-T_THRESHOLD           = float(os.environ.get("T_THRESHOLD", "1e10"))
+INSTANCE_TYPE_XLARGE   = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.24xlarge")
+INSTANCE_TYPE_HUGE   = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.48xlarge")
+
+# Optional: name the thresholds explicitly (as floats)
+THRESH_SMALL_MAX  = 1e8     # t <= 1e10 → SMALL
+THRESH_LARGE_MAX  = 1e12     # (1e10, 1e14] → LARGE
+THRESH_XLARGE_MAX = 1e16     # (1e14, 1e18) → XLARGE
+THRESH_HUGE_MAX   = 1e21     # [1e18, 1e21] → HUGe (and above → HUGe)
+
+#T_THRESHOLD           = float(os.environ.get("T_THRESHOLD", "1e10"))
 USE_SPOT              = os.environ.get("USE_SPOT", "false").lower() == "true"
 
 logger = logging.getLogger()
@@ -37,7 +46,25 @@ def load_user_data_from_s3(bucket: str, key: str, variables: dict) -> str:
     return tmpl.safe_substitute(variables)
 
 def _pick_instance_type(t_val: float) -> str:
-    return INSTANCE_TYPE_LARGE if t_val >= T_THRESHOLD else INSTANCE_TYPE_SMALL
+    """
+    Ranges:
+      - t <= 1e10                     → SMALL
+      - 1e10 < t <= 1e14              → LARGE
+      - 1e14 < t <  1e18              → XLARGE
+      - 1e18 <= t <= 1e21 (and above) → HUGE
+    """
+    if t_val <= THRESH_SMALL_MAX:
+        choice = INSTANCE_TYPE_SMALL
+    elif t_val <= THRESH_LARGE_MAX:
+        choice = INSTANCE_TYPE_LARGE
+    elif t_val < THRESH_XLARGE_MAX:  # strictly less than 1e18 to avoid gap
+        choice = INSTANCE_TYPE_XLARGE
+    else:
+        # includes [1e18, 1e21] and anything > 1e21
+        choice = INSTANCE_TYPE_HUGE
+
+    logger.info(f"_pick_instance_type: t={t_val} → {choice}")
+    return choice
 
 def lambda_handler(event, context):
     # Expect {"image":"ami-...", "t": <number|string>, "zeros": <number|string>}

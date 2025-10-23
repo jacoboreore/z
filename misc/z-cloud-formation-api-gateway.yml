@@ -21,6 +21,10 @@ Parameters:
     Type: String
     Default: arn:aws:lambda:us-east-1:407875882825:function:z_lambda_list_artifacts
     Description: ARN of the Lambda that returns all objects in S3
+  CancelArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:407875882825:function:z_lambda_cancel
+    Description: ARN of the Lambda that Cancels a job
   UserPoolId:
     Type: String
     Description: Cognito User Pool ID (for authorizer). If empty, authorizer is skipped.
@@ -109,7 +113,15 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri: !Ref ListArtifactsArn
       PayloadFormatVersion: "2.0"
-      
+  
+  IntCancel:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Ref CancelArn
+      PayloadFormatVersion: "2.0"
+
   # --- Routes ---
   RouteLoginPost:
     Type: AWS::ApiGatewayV2::Route
@@ -145,6 +157,15 @@ Resources:
       AuthorizationType: !If [ UseAuthorizer, JWT, NONE ]
       AuthorizerId: !If [ UseAuthorizer, !Ref CognitoAuthorizer, !Ref "AWS::NoValue" ]
 
+  RouteGetCancelPost:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /cancel"
+      Target: !Sub "integrations/${IntCancel}"
+      AuthorizationType: !If [ UseAuthorizer, JWT, NONE ]
+      AuthorizerId: !If [ UseAuthorizer, !Ref CognitoAuthorizer, !Ref "AWS::NoValue" ]
+
   # --- Lambda permissions so API Gateway can invoke them ---
   PermLogin:
     Type: AWS::Lambda::Permission
@@ -177,6 +198,14 @@ Resources:
       FunctionName: !Ref GetStatusLambdaArn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/status"
+
+  PermCancel:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CancelArn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/cancel"
 
   # --- Custom domain (optional) ---
   ApiDomainName:
