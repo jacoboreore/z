@@ -149,7 +149,9 @@ def validate_zeta_zero(sigma, t, prec_bits=256, zero_threshold=1e-10, newton_ite
 sigma = 0.5
 #t_large = "4400961943973.052602062600039768164996"
 #t_large = "4400961943973.05260206260003976816499647134924840351522867308276"
+t_large = "8888888888888888821.09502944542"
 t_large = "88888888888888888888.094123468421138240230100491246"
+
 
 # start with comfortable precision and a stricter threshold
 validate_zeta_zero(sigma, t_large, prec_bits=150, zero_threshold=1e-8, newton_iters=1)
