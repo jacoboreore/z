@@ -1,4 +1,3 @@
-# lambda_function.py
 import os, json, base64, uuid, boto3
 from string import Template
 import logging
@@ -101,7 +100,6 @@ def lambda_handler(event, context):
         "zeros_val": zeros_val,
     }
 
-    # e.g., put your template at s3://<your-bucket>/templates/user_data_template.sh
     template_key = "z-commands/all_commands"
     user_data = load_user_data_from_s3(S3_BUCKET, template_key, vars_map)
 

@@ -1,4 +1,24 @@
-// cli.h
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: cli.h
+// Purpose:
+//   Command-line parser for Valley Scanner. Translates user arguments into an
+//   Options structure, performing basic validation and help printing.
+//
+// Supported modes:
+//   • z <t> <job_id>
+//   • valley_walk <t> <num_zeros> <job_id>
+//   • refine <t> <job_id>
+//   • pre_filter <t> <job_id>
+//   • valley_scanner <t> <job_id>
+//   • refine_progressive <file> <job_id>
+//   • z_os <t> <job_id>
+//
+// -----------------------------------------------------------------------------
+
 #pragma once
 #include <string>
 

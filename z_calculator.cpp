@@ -1,6 +1,32 @@
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// Module: z_calculator.cpp
+// Description:
+//   Unified Z(t) evaluation, ball-certification helper, and a lightweight
+//   prefilter. Keeps multiple historical/experimental pathways as testimony
+//   of versions tested during development.
+//
+//   Public entry points in this file:
+//     - long rs_N(const mpfr_t t)
+//     - void compute_Z(mpfr_t Z, mpfr_t t)
+//     - void compute_Z_ball(mpfr_t Z, mpfr_t t)
+//     - bool z_prefilter(const mpfr_t t)
+//
+//   Internal helpers (file-local):
+//     - print_val(...)
+//     - theta_quick(...)
+//     - fast_log1p_3(...)
+// -----------------------------------------------------------------------------
+
+#include <iostream>
+#include <iomanip>
+#include <cmath>
 #include <mpfr.h>
 #include <mpc.h>
-#include <cmath>
+
 #include "z_calculator_rs_gabcke.h"
 #include "z_calculator_small.h"
 #include "confirm_zero.h"
@@ -11,7 +37,17 @@
 #include "logs.h"
 #include "utils.h"
 
-// small helper for pretty MPFR prints (decimal, base=10)
+// -----------------------------------------------------------------------------
+// Pretty MPFR output
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief Print a labeled MPFR value in base-10 with a fixed number of digits.
+ *
+ * @param tag    Left label to print.
+ * @param x      MPFR number to print.
+ * @param digits Number of base-10 digits to print (default: 24).
+ */
 static inline void print_val(const char *tag, const mpfr_t x, int digits = 24)
 {
     std::cout << std::left << std::setw(12) << tag << " = ";
@@ -19,6 +55,18 @@ static inline void print_val(const char *tag, const mpfr_t x, int digits = 24)
     std::cout << "\n";
 }
 
+// -----------------------------------------------------------------------------
+// Riemann–Siegel cutoff N
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief Compute the standard Riemann–Siegel truncation index N(t).
+ *
+ * Uses N = floor(sqrt(t / (2π))) with a floor of 1.
+ *
+ * @param t  Height parameter (MPFR).
+ * @return   Truncation index N >= 1.
+ */
 long rs_N(const mpfr_t t)
 {
     mpfr_t pi, two_pi, tmp;
@@ -34,14 +82,25 @@ long rs_N(const mpfr_t t)
         N = 1;
 
     mpfr_clears(pi, two_pi, tmp, (mpfr_ptr)0);
-
     return N;
 }
 
-// ---------------- Unified compute_Z ----------------
+// -----------------------------------------------------------------------------
+// Unified compute_Z (switches implementation by N)
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief Unified Z(t) evaluator.
+ *
+ * Chooses between a small-t path and Riemann–Siegel + Gabcke path
+ * according to rs_N(t). Also updates the global “best-so-far” registry.
+ *
+ * @param[out] Z  Result Z(t).
+ * @param[in]  t  Height parameter (may be updated elsewhere; not modified here).
+ */
 void compute_Z(mpfr_t Z, mpfr_t t)
 {
-    long N = rs_N(t);
+    const long N = rs_N(t);
 
     if (N < 20)
     {
@@ -52,14 +111,31 @@ void compute_Z(mpfr_t Z, mpfr_t t)
         compute_Z_rs_gabcke(Z, t);
     }
 
-    // record best-so-far across the entire app
+    // Record best-so-far across the application
     best_update(Z, t);
 }
 
-// Z ball calculation for rigor certification
+// -----------------------------------------------------------------------------
+// Z-ball calculation for rigor certification
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief Evaluate Z(t), run ball-certification, optionally refine via Newton,
+ *        and summarize acceptance based on ball containment and local sign flip.
+ *
+ * Steps:
+ *   1) Compute Z(t) and a rigorous ball bound at t.
+ *   2) If the ball does not certify a zero, attempt Newton refinement to t* and
+ *      recompute the ball there.
+ *   3) Perform a local sign-flip test in a ±0.2·spacing window.
+ *   4) Report the final decision (ACCEPT/REJECT) to stdout.
+ *
+ * @param[out] Z  Receives Z at the final inspection point (t or refined t*).
+ * @param[in]  t  Input height; may be refined internally but original is not changed.
+ */
 void compute_Z_ball(mpfr_t Z, mpfr_t t)
 {
-    long N = rs_N(t);
+    const long N = rs_N(t);
 
     mpfr_t Z1, t_star, Z0, abs_mid, rad_total, t_cur;
     mpfr_inits2(CFG().mpfr_prec, Z1, t_star, Z0, abs_mid, rad_total, t_cur, (mpfr_ptr)0);
@@ -69,8 +145,9 @@ void compute_Z_ball(mpfr_t Z, mpfr_t t)
 
     mpfr_printf("t = %.30Rf\n", t);
     std::cout << "Riemann-Siegel N = " << N << "\n";
-    std::cout << std::scientific << "est_spacing(t) = " << est_spacing(t)
-              << "  (≈ pi / log(t/2pi))\n";
+    std::cout << std::scientific
+              << "est_spacing(t) = " << est_spacing(t)
+              << "  (≈ π / log(t / 2π))\n";
 
     compute_Z(Z0, t);
     print_val("Z(t)", Z0, 50);
@@ -110,7 +187,7 @@ void compute_Z_ball(mpfr_t Z, mpfr_t t)
         compute_Z(Z1, t_star);
         print_val("Z(t*)", Z1, 24);
 
-        // reuse the same ball object safely by clear+init
+        // reuse the ball object safely by clear+init
         zballv_clear(b);
         zballv_init(b, CFG().mpfr_prec);
         compute_Z_ball_verbose(b, t_star);
@@ -128,23 +205,37 @@ void compute_Z_ball(mpfr_t Z, mpfr_t t)
 
         contains = contains2;
         mpfr_set(t_cur, t_star, MPFR_RNDN);
+        mpfr_set(Z, Z1, MPFR_RNDN); // return Z at refined point
     }
     else
     {
         std::cout << "\nAlready certified at input t.\n";
+        mpfr_set(Z, Z0, MPFR_RNDN);
     }
 
-    bool signflip = confirm_zero_like(t_cur, /*use_threaded_z=*/1);
+    const bool signflip = confirm_zero_like(t_cur, /*use_threaded_z=*/1);
     std::cout << "confirm_zero_like(±0.2·spacing): " << (signflip ? "YES" : "NO") << "\n";
 
-    bool accept = contains && signflip;
+    const bool accept = contains && signflip;
     std::cout << "\nFINAL DECISION: " << (accept ? "ACCEPT (likely zero nearby)" : "REJECT") << "\n";
 
     mpfr_clears(Z1, t_star, Z0, abs_mid, rad_total, t_cur, (mpfr_ptr)0);
     zballv_clear(b);
 }
 
-// ---------- quick theta for prefilter (3-term Stirling) ----------
+// -----------------------------------------------------------------------------
+// Fast θ(t) for prefilter (3-term Stirling)
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief Fast θ(t) approximation for prefiltering.
+ *
+ * Uses:
+ *   θ ≈ (t/2)log(t/(2π)) − t/2 − π/8 + 1/(48t) + 7/(5760 t^3)
+ *
+ * @param[out] theta  Result θ(t).
+ * @param[in]  t      Height parameter.
+ */
 static inline void theta_quick(mpfr_t theta, const mpfr_t t)
 {
     const mpfr_prec_t P = mpfr_get_prec(t);
@@ -189,7 +280,18 @@ static inline void theta_quick(mpfr_t theta, const mpfr_t t)
     mpfr_clears(pi, two_pi, u, half_t, term1, pi_over_8, invt, invt3, tmp, (mpfr_ptr)0);
 }
 
-// ---------- 3-term fast log1p for tiny x (|x| <= 1e-3) ----------
+// -----------------------------------------------------------------------------
+// 3-term fast log1p for tiny x (|x| <= 1e-3)
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief Approximate log(1+x) with a 3-term Taylor when |x| <= 1e-3, else mpfr_log1p.
+ *
+ * Uses out = x − x^2/2 + x^3/3 for small |x|.
+ *
+ * @param[out] out Result of log1p(x).
+ * @param[in]  x   Input MPFR number.
+ */
 static inline void fast_log1p_3(mpfr_t out, const mpfr_t x)
 {
     const double xd = mpfr_get_d(x, MPFR_RNDN);
@@ -198,14 +300,17 @@ static inline void fast_log1p_3(mpfr_t out, const mpfr_t x)
         const mpfr_prec_t P = mpfr_get_prec(x);
         mpfr_t x2, x3, tmp;
         mpfr_inits2(P, x2, x3, tmp, (mpfr_ptr)0);
-        mpfr_mul(x2, x, x, MPFR_RNDN);  // x^2
-        mpfr_mul(x3, x2, x, MPFR_RNDN); // x^3
+
+        mpfr_mul(x2, x, x, MPFR_RNDN);       // x^2
+        mpfr_mul(x3, x2, x, MPFR_RNDN);      // x^3
+
         // out = x - x^2/2 + x^3/3
-        mpfr_div_ui(tmp, x2, 2, MPFR_RNDN); // x^2/2
-        mpfr_neg(tmp, tmp, MPFR_RNDN);      // -x^2/2
-        mpfr_add(out, x, tmp, MPFR_RNDN);   // x - x^2/2
-        mpfr_div_ui(tmp, x3, 3, MPFR_RNDN); // x^3/3
-        mpfr_add(out, out, tmp, MPFR_RNDN); // ... + x^3/3
+        mpfr_div_ui(tmp, x2, 2, MPFR_RNDN);  // x^2/2
+        mpfr_neg(tmp, tmp, MPFR_RNDN);       // -x^2/2
+        mpfr_add(out, x, tmp, MPFR_RNDN);    // x - x^2/2
+        mpfr_div_ui(tmp, x3, 3, MPFR_RNDN);  // x^3/3
+        mpfr_add(out, out, tmp, MPFR_RNDN);  // + x^3/3
+
         mpfr_clears(x2, x3, tmp, (mpfr_ptr)0);
     }
     else
@@ -214,11 +319,33 @@ static inline void fast_log1p_3(mpfr_t out, const mpfr_t x)
     }
 }
 
+// -----------------------------------------------------------------------------
+// Prefilter (fast gate) to decide whether a t is worth full evaluation.
+// Not used in the Paper version to calculate zeros.
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief Lightweight prefilter to estimate whether a candidate t is promising.
+ *
+ * Strategy:
+ *   - For very small N, compute a quick Z_small and gate on |Z|.
+ *   - For general N, accumulate a truncated cosine-sum S_K using a fast θ(t)
+ *     and phase-rotation updates. Periodically check a conservative bound to
+ *     decide “KEEP” vs “DROP”.
+ *
+ * Tunables (from CFG unless otherwise noted):
+ *   - prefilter_alpha  ∈ (0,1): fraction of N for K.
+ *   - prefilter_tau, prefilter_tau_boost: decision thresholding.
+ *   - Internal constants: BLOCK=512, FASTLOG1P_MIN_I=1000, R_SAFETY_MULTIPLIER=1.05.
+ *
+ * @param t  Height parameter (MPFR).
+ * @return   true => keep (promising), false => drop.
+ */
 bool z_prefilter(const mpfr_t t)
 {
-    // pull knobs only from CFG()
-    double alpha = CFG().prefilter_alpha;
-    double tau = CFG().prefilter_tau;
+    // Pull knobs from CFG()
+    double alpha     = CFG().prefilter_alpha;
+    double tau       = CFG().prefilter_tau;
     double tau_boost = CFG().prefilter_tau_boost;
 
     if (!(alpha > 0.0 && alpha < 1.0))
@@ -226,7 +353,7 @@ bool z_prefilter(const mpfr_t t)
 
     const long N = rs_N(t);
 
-    // cheap small-N gate
+    // Cheap small-N gate
     if (N < 8)
     {
         mpfr_t Zs;
@@ -234,27 +361,23 @@ bool z_prefilter(const mpfr_t t)
         compute_Z_small(Zs, t);
         const double az = std::fabs(mpfr_get_d(Zs, MPFR_RNDN));
 
-        LOGMP("N = %.*Rf |Z_small| = %.*Rg Keep = %s",
+        LOGMP("N = %ld |Z_small| = %.6g Keep ≈ %s",
               N,
               az,
-              ((az < 0.3) ? "YES" : "NO-ish"));
+              (az < 0.3 ? "YES" : "NO-ish"));
 
         mpfr_clear(Zs);
-        if (az >= 0.3)
-            return false;
-        if (az <= 1e-2)
-            return true;
-        return true; // ambiguous -> keep
+        if (az >= 0.3)   return false;
+        if (az <= 1e-2)  return true;
+        return true; // ambiguous -> favor recall
     }
 
-    // K = floor(alpha * N)
+    // K = floor(alpha * N), with basic guards
     long K = (long)std::floor(alpha * (double)N);
-    if (K < 4)
-        K = std::min<long>(N, 4);
-    if (K > N)
-        K = N;
+    if (K < 4)  K = std::min<long>(N, 4);
+    if (K > N)  K = N;
 
-    // fast theta
+    // Fast theta
     mpfr_t theta;
     mpfr_init2(theta, CFG().mpfr_prec);
     theta_quick(theta, t);
@@ -274,20 +397,15 @@ bool z_prefilter(const mpfr_t t)
     mpfr_cos(cphi, phi, MPFR_RNDN);
     mpfr_sin(sphi, phi, MPFR_RNDN);
 #endif
-    mpfr_add(S, S, cphi, MPFR_RNDN); // n=1 term
+    mpfr_add(S, S, cphi, MPFR_RNDN); // n = 1 term
 
     mpfr_t new_c, new_s, sqrt_i1, i1, tmp;
     mpfr_inits2(CFG().mpfr_prec, new_c, new_s, sqrt_i1, i1, tmp, (mpfr_ptr)0);
 
-    // internal tunables (can be moved to CFG() later if you want)
-    const int BLOCK = 512;
-    const int FASTLOG1P_MIN_I = 1000;
-    const double R_SAFETY_MULTIPLIER = 1.05;
-
-    // std::cerr << "[prefilter] N=" << N << "  K=" << K
-    //           << "  alpha=" << alpha
-    //           << "  tau=" << tau
-    //           << "  tau_boost=" << tau_boost << "\n";
+    // Internal tunables (kept local on purpose)
+    const int    BLOCK                 = 512;
+    const int    FASTLOG1P_MIN_I       = 1000;
+    const double R_SAFETY_MULTIPLIER   = 1.05;
 
     auto emit_snapshot = [&](long i_or_K, const mpfr_t Sk)
     {
@@ -310,18 +428,17 @@ bool z_prefilter(const mpfr_t t)
         remainder_bound(R, t);
         mpfr_mul_d(R, R, R_SAFETY_MULTIPLIER, MPFR_RNDN);
 
-        // L = |2S| - (2T + R)
+        // L = |2S| − (2T + R)
         mpfr_sub(L, abs_twoS, tail, MPFR_RNDN);
         mpfr_sub(L, L, R, MPFR_RNDN);
 
-        // UB = |2S| + (2T + R)
+        // UB = |2S| + (2T + R)   (kept for diagnostics)
         mpfr_add(UB, abs_twoS, tail, MPFR_RNDN);
         mpfr_add(UB, UB, R, MPFR_RNDN);
 
         const double tau_eff = tau + tau_boost / std::sqrt((double)N);
         mpfr_set_d(TauEff, tau_eff, MPFR_RNDN);
 
-        // keep if L <= tau_eff
         const bool keep_here = (mpfr_cmp_d(L, tau_eff) <= 0);
 
         mpfr_clears(twoS, abs_twoS, tail, sqrtN, sqrtK, R, L, UB, TauEff, (mpfr_ptr)0);
@@ -329,7 +446,7 @@ bool z_prefilter(const mpfr_t t)
     };
 
     bool decided = false;
-    bool keep = true; // default favoring recall
+    bool keep    = true; // default favoring recall
 
     for (long i = 1; i < K; ++i)
     {
@@ -340,6 +457,7 @@ bool z_prefilter(const mpfr_t t)
             fast_log1p_3(dphi, q);
         else
             mpfr_log1p(dphi, q, MPFR_RNDN);
+
         mpfr_mul(dphi, dphi, t, MPFR_RNDN);
 
 #if MPFR_VERSION_MAJOR > 4 || (MPFR_VERSION_MAJOR == 4 && MPFR_VERSION_MINOR >= 1)
@@ -348,13 +466,13 @@ bool z_prefilter(const mpfr_t t)
         mpfr_cos(cd, dphi, MPFR_RNDN);
         mpfr_sin(sd, dphi, MPFR_RNDN);
 #endif
-        // rotate (c,s) by -Δφ
+        // rotate (c,s) by −Δφ
         mpfr_mul(new_c, cphi, cd, MPFR_RNDN);
-        mpfr_mul(tmp, sphi, sd, MPFR_RNDN);
+        mpfr_mul(tmp,  sphi, sd, MPFR_RNDN);
         mpfr_add(new_c, new_c, tmp, MPFR_RNDN);
 
         mpfr_mul(new_s, sphi, cd, MPFR_RNDN);
-        mpfr_mul(tmp, cphi, sd, MPFR_RNDN);
+        mpfr_mul(tmp,  cphi, sd, MPFR_RNDN);
         mpfr_sub(new_s, new_s, tmp, MPFR_RNDN);
 
         mpfr_set(cphi, new_c, MPFR_RNDN);
@@ -371,7 +489,7 @@ bool z_prefilter(const mpfr_t t)
             const bool keep_here = emit_snapshot(i + 1, S);
             if (!keep_here)
             {
-                keep = false;
+                keep    = false;
                 decided = true;
                 break;
             }
@@ -380,12 +498,13 @@ bool z_prefilter(const mpfr_t t)
 
     if (!decided)
     {
-        // final decision
+        // Final decision at K
         keep = emit_snapshot(K, S);
     }
 
     LOGMP("[prefilter] DECISION: %s", (keep ? "KEEP" : "DROP"));
 
-    mpfr_clears(theta, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd, new_c, new_s, sqrt_i1, i1, tmp, (mpfr_ptr)0);
+    mpfr_clears(theta, S, n, ln_n, phi, cphi, sphi, q, dphi, cd, sd,
+                new_c, new_s, sqrt_i1, i1, tmp, (mpfr_ptr)0);
     return keep;
 }

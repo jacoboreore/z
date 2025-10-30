@@ -1,3 +1,18 @@
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: settings.h
+// Purpose:
+//   Configuration loader and reporter for the Z(t) computation suite.
+//   - Parses key–value pairs from a config file and environment variables.
+//   - Exposes a single global Config instance via CFG().
+//   - Applies MPFR precision globally.
+//   - Prints library version information (GMP/MPFR/MPC).
+//
+// -----------------------------------------------------------------------------
+
 #pragma once
 #include <cstdint>
 #include <cstring>
@@ -35,27 +50,27 @@ struct Config
 
     double ball_mid_threshold = 1e-8;
 
-    double h_min = 1e-9;             // min FD step
-    double h_frac_spacing = 0.10;    // h ≤ h_frac_spacing * spacing
-    double step_frac_spacing = 0.70; // |Δt| ≤ step_frac_spacing * spacing
+    double h_min = 1e-9;
+    double h_frac_spacing = 0.10;
+    double step_frac_spacing = 0.70;
 
     // RS / threading knobs
-    bool rs_half_weight_last = false;  // apply ½‑weight on last term
-    double rs_tail_C = 0.5;            // remainder constant (tunable)
-    int min_threads = 1;               // 1 = no forced oversubscription
-    int max_threads = 0;               // 0 = hw_concurrency
-    int rs_min_N_for_threads = 64;     // don’t thread tiny N
-    double theta_exact_switch_t = 1e9; // reserved for exact theta gate
+    bool rs_half_weight_last = false;
+    double rs_tail_C = 0.5;
+    int min_threads = 1;
+    int max_threads = 0;
+    int rs_min_N_for_threads = 64;
+    double theta_exact_switch_t = 1e9;
 
-    // logging
+    // logs
     bool rs_log_debug = true;
     bool rs_main_log = true;
     int rs_log_digits = 24;
 
-    int theta_stirling_terms = 8; // integer term count
+    int theta_stirling_terms = 8;
 
-    double valley_grow = 2e-8;            // factor to add to N to walk the to the valley
-    double valley_aggressive_factor = 10; // factor to multply if the step to walk fastee
+    double valley_grow = 2e-8;
+    double valley_aggressive_factor = 10;
     double valley_constant_step = 0;
     double valley_constant_step_div = 50;
     double valley_tolerance_to_step = 1;
@@ -63,21 +78,20 @@ struct Config
     double valley_max_Zs_relation = 2;
     double valley_insistence = 3;
 
-    Real enable_min_t = 1e14L;    // only use OS when t0 >= this
-    int samples_per_spacing = 8;  // Δt = spacing / S
-    std::size_t K_points = 1024;  // points computed per block (≤ M)
-    Real delta_log_max = 1e-3L;   // bin width in log n (smaller → more accurate)
-    int poly_deg_R = 4;           // Taylor degree (2..6 reasonable)
-    bool return_main_sum = false; // if true: skip θ factor (debug)
+    Real enable_min_t = 1e14L;
+    int samples_per_spacing = 8;
+    std::size_t K_points = 1024;
+    Real delta_log_max = 1e-3L;
+    int poly_deg_R = 4;
+    bool return_main_sum = false;
 
-    // NEW: classification thresholds
-    Real tol_refine = 1e-4L;      // what you pass to Newton as “near enough”
-    Real z_far = 0.5L;            // |Zc| above this looks far (order-1)
-    Real ratio_far = 0.5L;        // |dt_pred|/spacing above this looks off-center
-    Real min_mult = 10.0L;        // accept if min|Z| <= min_mult * tol_refine
-    Real eps_abs = 1e-3L;         // absolute guard band for ‘trusted sign’
-    Real eps_rel = 0.02L;         // relative guard band (fraction of median |Z|)
-    Real flip_center_frac = 0.6L; // flip must be within ±0.6*spacing of center to auto-accept
+    Real tol_refine = 1e-4L;
+    Real z_far = 0.5L;
+    Real ratio_far = 0.5L;
+    Real min_mult = 10.0L;
+    Real eps_abs = 1e-3L;
+    Real eps_rel = 0.02L;
+    Real flip_center_frac = 0.6L;
 
     // Outputs
     bool walking_output_enabled = true;

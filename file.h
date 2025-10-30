@@ -1,3 +1,16 @@
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: file.h  (zcsv helpers)
+// Purpose:
+//   Portable CSV append/read helpers for Valley Scanner outputs, with
+//   fsync/commit guarantees on write and simple row-wise parsing utilities.
+//   Thread-safe appends via a process-global mutex.
+//
+// -----------------------------------------------------------------------------
+
 #pragma once
 #include <string>
 #include <mutex>
@@ -32,6 +45,11 @@
 #define ZC_MODE (0644)
 #endif
 
+/**
+ * @brief Extract human-readable text from an exception-like object.
+ * @tparam E exception type (must support .what() or fallback is returned)
+ * @return e.what() when available, otherwise "<no what() available>"
+ */
 template <class E>
 const char *ex_text(const E &e)
 {
@@ -43,7 +61,13 @@ const char *ex_text(const E &e)
 
 namespace zcsv
 {
-    // process ID
+    // -------------------------------------------------------------------------
+    // Process identity & filenames
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Get current process id as unsigned long (platform-specific).
+     */
     inline unsigned long current_pid()
     {
 #if defined(_WIN32)
@@ -53,13 +77,23 @@ namespace zcsv
 #endif
     }
 
+    /**
+     * @brief Build a per-process output CSV filename in @p dir with @p prefix.
+     *
+     * Pattern is currently simplified to "<prefix>.csv" (stable name), but the
+     * timestamp and pid scaffolding remains for future use if desired.
+     *
+     * @param dir    Output directory (created if missing).
+     * @param prefix Filename stem (no extension).
+     * @return Full path to CSV file.
+     */
     inline std::string make_process_filename(const std::string &dir = "output",
                                              const std::string &prefix = "process")
     {
         namespace fs = std::filesystem;
         fs::create_directories(dir);
 
-        // timestamp: YYYYMMDD_HHMMSS
+        // timestamp scaffolding retained for optional use
         auto now = std::chrono::system_clock::now();
         std::time_t t = std::chrono::system_clock::to_time_t(now);
         std::tm tm{};
@@ -72,20 +106,50 @@ namespace zcsv
         std::strftime(tb, sizeof(tb), "%Y%m%d_%H%M%S", &tm);
 
         std::ostringstream oss;
-        //oss << prefix << "_" << tb << "_pid" << current_pid() << ".csv";
+        // oss << prefix << "_" << tb << "_pid" << current_pid() << ".csv";
         oss << prefix << ".csv"; // simple file name
 
         return (fs::path(dir) / oss.str()).string();
     }
 
+    /**
+     * @brief Global CSV mutex for append operations.
+     * @return Reference to a process-global mutex.
+     */
     inline std::mutex &csv_mutex()
     {
         static std::mutex m;
         return m;
     }
 
-    // Append a single CSV record: t,absZ,N (all mpfr_t)
-    // Thread-safe; opens file, appends, fsync/commit, closes.
+    // -------------------------------------------------------------------------
+    // APPEND (single-record, fsync-on-write)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Append one CSV line in a thread-safe, durable manner.
+     *
+     * Modes and headers:
+     *   - mode=1 (walking)                 → header_walking            → cols: t,absZ,N
+     *   - mode=2 (walking for plotting)    → header_walking_for_plotting → cols: t,absZ,N,minima
+     *   - mode=3 (refine/progressive out)  → header_refined            → cols: t,absZ,spacing
+     *
+     * The header strings come from CFG() fields (e.g., header_walking).
+     *
+     * @param filepath  Target CSV path (parent dir created if needed).
+     * @param t         MPFR value to print.
+     * @param absZ      |Z|(t) or Z(t) magnitude .
+     * @param N         N(t) or counting proxy (ignored in refine mode).
+     * @param spacing   Δt vs previous refined t (used only in mode=3).
+     * @param minima    For plotting: 1 = last |Z| before bounce, 2 = refined t.
+     * @param mode      1=walking, 2=walking_for_plotting, 3=refined.
+     * @param digits    Significant digits for mpfr_to_string (default 24).
+     * @param write_header_if_new  Emit header if file does not yet exist.
+     * @return true on success (write+sync completed), false on error.
+     *
+     * @threadsafe Uses @ref csv_mutex to serialize concurrent appends.
+     * @warning mpfr_to_string must be available from utils.h as used here.
+     */
     inline bool append_record_csv(
         const std::string &filepath,
         const mpfr_t t,
@@ -208,11 +272,11 @@ namespace zcsv
         return true;
     }
 
-    ///////////////////////////////////////////////////////////////////////////////////
+    // -------------------------------------------------------------------------
     // READING
-    ///////////////////////////////////////////////////////////////////////////////////
+    // -------------------------------------------------------------------------
 
-    // helpers
+    /** @brief Trim leading/trailing ASCII whitespace in-place. */
     inline void trim_inplace(std::string &s)
     {
         size_t a = 0, b = s.size();
@@ -224,6 +288,11 @@ namespace zcsv
         s.assign(s.data() + a, b - a);
     }
 
+    /**
+     * @brief Split a CSV line with three fields into a,b,c (no quotes/escapes).
+     * @return true on success; false if fewer than 3 tokens are present.
+     * @note Each field is trimmed.
+     */
     inline bool split3(const std::string &line, std::string &a, std::string &b, std::string &c)
     {
         std::istringstream iss(line);
@@ -242,6 +311,13 @@ namespace zcsv
         return true;
     }
 
+    /**
+     * @brief Parse base-10 string into mpfr_t, with fallback for 'e'→'@' exponent.
+     * @param out Destination mpfr_t (precision already set).
+     * @param s   Source string (e.g., "1.23e-4").
+     * @param rnd MPFR rounding mode.
+     * @return true if parse succeeded, false otherwise.
+     */
     inline bool mpfr_from_str10(mpfr_t out, const std::string &s, mpfr_rnd_t rnd = MPFR_RNDN)
     {
         if (mpfr_set_str(out, s.c_str(), 10, rnd) == 0)
@@ -254,9 +330,34 @@ namespace zcsv
         return mpfr_set_str(out, t.c_str(), 10, rnd) == 0;
     }
 
-    // --- main API ------------------------------------------------
-    // Calls `on_row(t, absZ, N, line_no)` for each data row.
-    // Returns true on full success; false if file open/parse error (continues best-effort).
+    /**
+     * @brief Read a CSV of triplets (t, |Z|, N) and invoke a callback per row.
+     *
+     * Format:
+     *   - Optional header auto-detected if first token is "t" or "T".
+     *   - Each subsequent non-empty, non-comment line is split by ',' into
+     *     three fields and parsed as base-10 numbers into (t, absZ, N).
+     *
+     * Callback signature:
+     * @code
+     *   on_row(t, absZ, N, line_no, to_file, spacing, prev_t);
+     * @endcode
+     * The callback may append refined rows to @p to_file using append_record_csv.
+     *
+     * @tparam F        Callable type (will be forwarded).
+     * @param filepath  Input CSV path.
+     * @param to_file   Output CSV path (used by callback).
+     * @param spacing   MPFR var passed through for Δt tracking (callback owns logic).
+     * @param prev_t    MPFR var holding previous t* (callback updates it).
+     * @param prec_bits Precision for per-line temporaries (t, absZ, N).
+     * @param on_row    User callback invoked per parsed row.
+     * @param has_header_auto Auto-detect and skip header row if present.
+     * @return true if file opened and all parsed rows were processed; false if
+     *         open/parse errors occurred (processing continues best-effort).
+     *
+     * @note Internally reuses mpfr temporaries per line; caller owns @p spacing
+     *       and @p prev_t lifetimes.
+     */
     template <class F>
     bool read_triplets_csv(
         const std::string &filepath,

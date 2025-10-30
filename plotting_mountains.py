@@ -1,3 +1,13 @@
+# -----------------------------------------------------------------------------
+# Valley Scanner © 2025 Jacob Orellana
+# All rights reserved. Redistribution and use in source or binary forms
+# are permitted only with explicit written permission of the author.
+#
+# File: plotting_mountains.py
+# Purpose:
+#   Plot mountains and valleys and calculated minima
+# -----------------------------------------------------------------------------
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

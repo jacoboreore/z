@@ -1,6 +1,20 @@
-#include <cmath>
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: refine_newton.cpp
+// Purpose:
+//   Newton–secant–Pegasus hybrid root refiner for Hardy’s Z(t).
+//   - Tracks best |Z| via observer callbacks.
+//   - Uses adaptive finite-difference derivatives (3-pt/5-pt).
+//   - Backtracking with descent nudges; optional Pegasus burst if bracketed.
+// -----------------------------------------------------------------------------
+
 #include <algorithm>
+#include <cmath>
 #include <sstream>
+
 #include "refine_newton.h"
 #include "confirm_zero.h"
 #include "z_calculator.h"
@@ -12,12 +26,53 @@
 #include <omp.h>
 #endif
 
-// helpers
+// Observer interface
+struct RefineObserver
+{
+    virtual ~RefineObserver() {}
+    virtual void observe(const mpfr_t t, const mpfr_t Z) = 0; // (t, Z)
+};
 
+// Tracks the best |Z| and its t
+struct BestTracker : RefineObserver
+{
+    mpfr_t t_best, z_best_abs;
+    bool has_sample{false};
+
+    explicit BestTracker(mpfr_prec_t prec)
+    {
+        mpfr_inits2(prec, t_best, z_best_abs, (mpfr_ptr)0);
+        mpfr_set_inf(z_best_abs, 1); // +inf sentinel
+    }
+    ~BestTracker() override
+    {
+        mpfr_clears(t_best, z_best_abs, (mpfr_ptr)0);
+    }
+
+    void observe(const mpfr_t t, const mpfr_t Z) override
+    {
+        mpfr_t a;
+        mpfr_inits2(CFG().mpfr_prec, a, (mpfr_ptr)0);
+        mpfr_abs(a, Z, MPFR_RNDN);
+        if (!has_sample || mpfr_cmp(a, z_best_abs) < 0)
+        {
+            mpfr_set(z_best_abs, a, MPFR_RNDN);
+            mpfr_set(t_best, t, MPFR_RNDN);
+            LOGMP_DEBUG("Best calculations from the observer t = %.*Rf |Z| = %.*Rg",
+                        CFG().rs_log_digits, t_best,
+                        CFG().rs_log_digits, z_best_abs);
+            has_sample = true;
+        }
+        mpfr_clear(a);
+    }
+};
+
+// Helpers
 static inline int mpfr_sign(const mpfr_t x) { return mpfr_sgn(x); }
+
 static inline bool opposite_sign(const mpfr_t a, const mpfr_t b)
 {
-    int sa = mpfr_sign(a), sb = mpfr_sign(b);
+    const int sa = mpfr_sign(a), sb = mpfr_sign(b);
     return sa && sb && (sa != sb);
 }
 
@@ -39,14 +94,20 @@ static inline double choose_h(const mpfr_t t)
     return std::clamp(h0, 1e-9, 0.1 * s);
 }
 
-/* ============== lightweight Pegasus burst ============== */
-
-// refine a pre-existing bracket [a,b] with fa*fb<0]; a few steps only
+// ----------------------------------------------------------------------------
+// Pegasus burst on an existing bracket [a,b] with fa*fb < 0
+// ----------------------------------------------------------------------------
 static bool pegasus_refine_bracket(
     mpfr_t root,
-    mpfr_t a, mpfr_t b, mpfr_t fa, mpfr_t fb,
-    double tol_abs, double tol_step,
-    int max_it, int use_threaded_z)
+    mpfr_t a,
+    mpfr_t b,
+    mpfr_t fa,
+    mpfr_t fb,
+    double tol_abs,
+    double tol_step,
+    int max_it,
+    int use_threaded_z,
+    RefineObserver *obs = nullptr)
 {
     const mpfr_prec_t P = CFG().mpfr_prec;
     mpfr_t z, fz, l, s, num, den, tmp;
@@ -72,8 +133,10 @@ static bool pegasus_refine_bracket(
         mpfr_sub(z, a, s, MPFR_RNDN);
 
         compute_Z(fz, z);
+        if (obs)
+            obs->observe(z, fz);
 
-        // termination checks
+        // |Z| test
         mpfr_t absfz;
         mpfr_init2(absfz, P);
         mpfr_abs(absfz, fz, MPFR_RNDN);
@@ -86,6 +149,7 @@ static bool pegasus_refine_bracket(
             break;
         }
 
+        // interval width test
         mpfr_t absl;
         mpfr_init2(absl, P);
         mpfr_abs(absl, l, MPFR_RNDN);
@@ -98,7 +162,7 @@ static bool pegasus_refine_bracket(
             break;
         }
 
-        // update bracket – scale the UNCHANGED endpoint (Pegasus); Illinois fallback on 0 denom
+        // Pegasus update (Illinois fallback if denom ~ 0)
         if (opposite_sign(fz, fb))
         {
             // root in [z,b] -> shift a=z, scale fa
@@ -106,7 +170,7 @@ static bool pegasus_refine_bracket(
             if (!mpfr_zero_p(tmp))
             {
                 mpfr_div(num, fb, tmp, MPFR_RNDN); // m = fb/(fb+fz)
-                mpfr_mul(fa, fa, num, MPFR_RNDN);  // fa = m*fa
+                mpfr_mul(fa, fa, num, MPFR_RNDN);  // fa = m * fa
             }
             else
             {
@@ -122,7 +186,7 @@ static bool pegasus_refine_bracket(
             if (!mpfr_zero_p(tmp))
             {
                 mpfr_div(num, fa, tmp, MPFR_RNDN); // m = fa/(fa+fz)
-                mpfr_mul(fb, fb, num, MPFR_RNDN);  // fb = m*fb
+                mpfr_mul(fb, fb, num, MPFR_RNDN);  // fb = m * fb
             }
             else
             {
@@ -139,20 +203,31 @@ static bool pegasus_refine_bracket(
     return ok;
 }
 
-/* ==================== derivatives ==================== */
+// ----------------------------------------------------------------------------
+// Derivatives
+// ----------------------------------------------------------------------------
 
 // 3-point central: Z'(t) ≈ (Z(t+h) - Z(t-h)) / (2h)
-static inline void diff_Z_3pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z)
+static inline void diff_Z_3pt(
+    mpfr_t dZ, const mpfr_t t,
+    double h,
+    int use_threaded_z,
+    RefineObserver *obs = nullptr)
 {
     mpfr_t tp, tm, Zp, Zm;
     mpfr_inits2(CFG().mpfr_prec, tp, tm, Zp, Zm, (mpfr_ptr)0);
+
     mpfr_set_d(tp, h, MPFR_RNDN);
     mpfr_add(tp, t, tp, MPFR_RNDN);
     mpfr_set_d(tm, -h, MPFR_RNDN);
     mpfr_add(tm, t, tm, MPFR_RNDN);
 
     compute_Z(Zp, tp);
+    if (obs)
+        obs->observe(tp, Zp);
     compute_Z(Zm, tm);
+    if (obs)
+        obs->observe(tm, Zm);
 
     mpfr_t num;
     mpfr_init2(num, CFG().mpfr_prec);
@@ -162,7 +237,12 @@ static inline void diff_Z_3pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
 }
 
 // 5-point: Z'(t) ≈ [ -Z(t+2h)+8Z(t+h)-8Z(t-h)+Z(t-2h) ]/(12h)
-static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z)
+static inline void diff_Z_5pt(
+    mpfr_t dZ,
+    const mpfr_t t,
+    double h,
+    int use_threaded_z,
+    RefineObserver *obs = nullptr)
 {
     mpfr_t tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2;
     mpfr_inits2(CFG().mpfr_prec, tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, (mpfr_ptr)0);
@@ -177,9 +257,17 @@ static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
     mpfr_add(tm2, t, tm2, MPFR_RNDN);
 
     compute_Z(Zp2, tp2);
+    if (obs)
+        obs->observe(tp2, Zp2);
     compute_Z(Zp1, tp1);
+    if (obs)
+        obs->observe(tp1, Zp1);
     compute_Z(Zm1, tm1);
+    if (obs)
+        obs->observe(tm1, Zm1);
     compute_Z(Zm2, tm2);
+    if (obs)
+        obs->observe(tm2, Zm2);
 
     mpfr_t num, term;
     mpfr_inits2(CFG().mpfr_prec, num, term, (mpfr_ptr)0);
@@ -194,7 +282,9 @@ static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
     mpfr_clears(tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, num, term, (mpfr_ptr)0);
 }
 
-/* ==================== step control ==================== */
+// ----------------------------------------------------------------------------
+// Step control
+// ----------------------------------------------------------------------------
 
 // Backtrack on Δ; return false if step shrinks too much without improvement
 static inline bool backtrack_step(
@@ -203,7 +293,8 @@ static inline bool backtrack_step(
     const mpfr_t delta,
     int use_threaded_z,
     double min_fraction = 1.0 / 64.0,
-    double min_abs_rel = 1e-18)
+    double min_abs_rel = 1e-18,
+    RefineObserver *obs = nullptr)
 {
     mpfr_t trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled;
     mpfr_inits2(CFG().mpfr_prec, trial_t, trial_Z, scaled, frac, abs_cur, abs_scaled, (mpfr_ptr)0);
@@ -226,6 +317,8 @@ static inline bool backtrack_step(
 
         mpfr_sub(trial_t, t, scaled, MPFR_RNDN);
         compute_Z(trial_Z, trial_t);
+        if (obs)
+            obs->observe(trial_t, trial_Z);
 
         mpfr_t abs_trial;
         mpfr_init2(abs_trial, CFG().mpfr_prec);
@@ -252,7 +345,10 @@ static inline bool backtrack_step(
 
 // If stuck (dZ ~ 0 and backtracking failed), try an adaptive nudge:
 // sample t ± h0 and move to the side with smaller |Z|.
-static inline bool descent_nudge(mpfr_t t, int use_threaded_z)
+static inline bool descent_nudge(
+    mpfr_t t,
+    int use_threaded_z,
+    RefineObserver *obs = nullptr)
 {
     const double s = est_spacing(t);
     const double h0 = std::max(1e-12, std::min(0.2 * s, choose_h(t)));
@@ -266,7 +362,11 @@ static inline bool descent_nudge(mpfr_t t, int use_threaded_z)
     mpfr_add(tm, t, tm, MPFR_RNDN);
 
     compute_Z(Zp, tp);
+    if (obs)
+        obs->observe(tp, Zp);
     compute_Z(Zm, tm);
+    if (obs)
+        obs->observe(tm, Zm);
 
     mpfr_t aP, aM;
     mpfr_inits2(CFG().mpfr_prec, aP, aM, (mpfr_ptr)0);
@@ -289,7 +389,9 @@ static inline bool descent_nudge(mpfr_t t, int use_threaded_z)
     return moved;
 }
 
-/* ==================== Newton driver ==================== */
+// ----------------------------------------------------------------------------
+// Newton main, single thread
+// ----------------------------------------------------------------------------
 bool newton_refine_root(
     mpfr_t t_out,
     const mpfr_t t0,
@@ -307,6 +409,9 @@ bool newton_refine_root(
     mpfr_inits2(CFG().mpfr_prec, t_prev, Z_prev, (mpfr_ptr)0);
     bool have_prev = false;
 
+    BestTracker tracker(CFG().mpfr_prec);
+    RefineObserver *obs = &tracker;
+
     // optional bracket state (for Pegasus burst)
     mpfr_t br_a, br_b, br_fa, br_fb;
     bool have_bracket = false;
@@ -314,10 +419,13 @@ bool newton_refine_root(
 
     for (int it = 0; it < max_iter; ++it)
     {
-        LOGMP_DEBUG("-> Newton single iter = %d", it);
-        compute_Z(Z, t);
+        LOGMP_DEBUG("-> Newton single iter = %d %d", it, (int)(obs != nullptr));
 
-        // keep/update a bracket when we see a sign change
+        compute_Z(Z, t);
+        if (obs)
+            obs->observe(t, Z);
+
+        // update a bracket when a sign change is seen
         if (have_prev && opposite_sign(Z_prev, Z))
         {
             if (!have_bracket)
@@ -356,16 +464,19 @@ bool newton_refine_root(
 
         if (absZ_d <= tol_abs)
         {
-            mpfr_set(t_out, t, MPFR_RNDN);
+            if (tracker.has_sample)
+                mpfr_set(t_out, tracker.t_best, MPFR_RNDN);
+            else
+                mpfr_set(t_out, t, MPFR_RNDN);
+
             mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
             mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
-
             return true;
         }
 
-        // derivative: 3pt then 5pt if needed
+        // derivative: 3-pt then 5-pt if needed
         double h = choose_h(t);
-        diff_Z_3pt(dZ, t, h, use_threaded_z);
+        diff_Z_3pt(dZ, t, h, use_threaded_z, obs);
 
         bool dZ_ok = !mpfr_zero_p(dZ);
         if (dZ_ok)
@@ -380,7 +491,7 @@ bool newton_refine_root(
         if (!dZ_ok)
         {
             const double h_big = std::min(2.0 * h, 0.2 * est_spacing(t));
-            diff_Z_5pt(dZ, t, h_big, use_threaded_z);
+            diff_Z_5pt(dZ, t, h_big, use_threaded_z, obs);
             dZ_ok = !mpfr_zero_p(dZ);
         }
 
@@ -404,7 +515,7 @@ bool newton_refine_root(
             }
             else
             {
-                if (!descent_nudge(t, use_threaded_z))
+                if (!descent_nudge(t, use_threaded_z, obs))
                 {
                     mpfr_add_d(t, t, 1e-9, MPFR_RNDN);
                 }
@@ -430,10 +541,13 @@ bool newton_refine_root(
         // accept if already tiny step
         if (d_abs <= tol_step)
         {
-            mpfr_set(t_out, t, MPFR_RNDN);
+            if (tracker.has_sample)
+                mpfr_set(t_out, tracker.t_best, MPFR_RNDN);
+            else
+                mpfr_set(t_out, t, MPFR_RNDN);
+
             mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
             mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
-
             return true;
         }
 
@@ -443,7 +557,7 @@ bool newton_refine_root(
         have_prev = true;
 
         // backtracking; if it fails and we have a bracket, try a tiny Pegasus burst
-        if (!backtrack_step(t, Z, delta, use_threaded_z))
+        if (!backtrack_step(t, Z, delta, use_threaded_z, 1.0 / 64.0, 1e-18, obs))
         {
             if (have_bracket)
             {
@@ -451,8 +565,9 @@ bool newton_refine_root(
                 mpfr_init2(z_br, CFG().mpfr_prec);
                 const bool ok = pegasus_refine_bracket(
                     z_br, br_a, br_b, br_fa, br_fb,
-                    /*tol_abs*/ tol_abs, /*tol_step*/ stage_step_tol(t, tol_abs),
-                    /*max_it*/ 8, use_threaded_z);
+                    /*tol_abs*/ tol_abs,
+                    /*tol_step*/ stage_step_tol(t, tol_abs),
+                    /*max_it*/ 8, use_threaded_z, obs);
                 if (ok)
                 {
                     mpfr_set(t, z_br, MPFR_RNDN);
@@ -461,17 +576,20 @@ bool newton_refine_root(
                 }
                 mpfr_clear(z_br);
             }
-            if (!descent_nudge(t, use_threaded_z))
+            if (!descent_nudge(t, use_threaded_z, obs))
             {
                 mpfr_sub(t, t, delta, MPFR_RNDN);
             }
         }
     }
 
-    // no convergence: return last t
-    mpfr_set(t_out, t, MPFR_RNDN);
+    // no convergence: return best-so-far (observer), else last t
+    if (tracker.has_sample)
+        mpfr_set(t_out, tracker.t_best, MPFR_RNDN);
+    else
+        mpfr_set(t_out, t, MPFR_RNDN);
+
     mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
     mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
-
     return false;
 }

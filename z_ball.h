@@ -1,3 +1,16 @@
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: z_ball.h
+// Purpose:
+//   Compute a validated “ball” for Hardy’s Z(t): a midpoint value plus
+//   conservative radius contributions for the RS tail, rounding, and θ(t)
+//   truncation. Chooses the small-ζ/η path or the RS–Gabcke path based on t.
+//
+// -----------------------------------------------------------------------------
+
 #pragma once
 #include <mpfr.h>
 

@@ -1,10 +1,37 @@
-#pragma once
-#include <mpfr.h>
-#include "settings.h"
-#include "z_calculator.h"           
-#include "z_calculator_small.h"  
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: confirm_zero.h
+// Purpose:
+//   Local spacing estimate and quick zero-likeness checks around a candidate t.
+//   • est_spacing(t):   s ≈ π / log(t/2π) with safe clamps.
+//   • use_threaded_for_t(t): decide whether RS main sum is large enough to
+//                            benefit from threaded evaluation.
+//   • confirm_zero_like(t, use_threaded_z): probe Z(t ± ε) and require a
+//                            sign change to flag a likely zero nearby.
+//
+// -----------------------------------------------------------------------------
 
-// Estimate local spacing s ≈ π / log(t/2π)
+#pragma once
+
+#include <mpfr.h>
+
+#include "settings.h"
+#include "z_calculator.h"       // compute_Z
+#include "z_calculator_small.h" // compute_Z_small
+
+/**
+ * @brief Estimate local zero spacing s ≈ π / log(t / 2π).
+ *
+ * @param t MPFR value: imaginary part of s = 1/2 + i t.
+ * @return Spacing estimate as double.
+ *
+ * @details
+ *   - Guards against log(≤0) by clamping x = t/(2π) to at least 1e-12.
+ *   - If log(x) ≤ 1e-12 after clamping, returns a safe fallback 0.25.
+ */
 static inline double est_spacing(const mpfr_t t)
 {
     mpfr_t pi, two_pi, x, logx, s;
@@ -32,7 +59,16 @@ static inline double est_spacing(const mpfr_t t)
     return out;
 }
 
-// Heuristic: use threaded RS when N = floor(sqrt(t/2π)) ≥ 8
+/**
+ * @brief Heuristic to decide if threaded RS evaluation is worthwhile at t.
+ *
+ * @param t MPFR value of the abscissa.
+ * @return true if N = ⌊√(t / 2π)⌋ ≥ 8, else false.
+ *
+ * @details
+ *   - Computes N as in the main-sum length of Riemann–Siegel (order of √(t/2π)).
+ *   - Threshold 8 is empirical: above it, the threaded overhead tends to pay off.
+ */
 static inline bool use_threaded_for_t(const mpfr_t t)
 {
     mpfr_t pi, two_pi, tmp;
@@ -48,7 +84,22 @@ static inline bool use_threaded_for_t(const mpfr_t t)
     return (N >= 8);
 }
 
-// Return true only if there is a sign change at t ± ε
+/**
+ * @brief Quick “zero-likeness” test: require a sign change across t ± ε.
+ *
+ * @param t              MPFR abscissa to test.
+ * @param use_threaded_z Hint (0/1). If non-zero and use_threaded_for_t(t) is true,
+ *                       use the full compute_Z path; otherwise use compute_Z_small.
+ * @return true iff sign(Z(t + ε)) · sign(Z(t − ε)) < 0.
+ *
+ * @details
+ *   - ε := max(1e-9, 0.2·est_spacing(t)) provides scale-aware probing while
+ *     avoiding underflow at small t.
+ *   - For the threaded path, temporaries are copied because some backends take
+ *     non-const mpfr_t inputs.
+ *
+ * @note This is a heuristic screen, not a certified proof of a zero.
+ */
 static inline bool confirm_zero_like(const mpfr_t t, int use_threaded_z)
 {
     const double s = est_spacing(t);
@@ -62,7 +113,7 @@ static inline bool confirm_zero_like(const mpfr_t t, int use_threaded_z)
 
     if (use_threaded_z && use_threaded_for_t(t))
     {
-        // compute_Z_threaded takes non-const t → pass temporaries
+        // compute_Z may modify inputs; pass temporaries
         mpfr_t tpc, tmc;
         mpfr_inits2(CFG().mpfr_prec, tpc, tmc, (mpfr_ptr)0);
         mpfr_set(tpc, tp, MPFR_RNDN);

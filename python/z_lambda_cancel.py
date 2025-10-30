@@ -20,7 +20,7 @@ def _find_instance(job_id: str):
     return None
 
 def _append_cancel_mark(job_id: str):
-    # Optional: append a line so your monitor can show "canceled"
+    # Optional: append a line so the monitor can show "canceled"
     # Safe no-op if bucket is unset or write fails.
     if not S3_BUCKET:
         return

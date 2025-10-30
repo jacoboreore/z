@@ -1,8 +1,20 @@
-#include <cmath>
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: refine_newton_thread.cpp
+// Purpose:
+//   Thread-aware Newton–secant–Pegasus hybrid refiner for Hardy’s Z(t) with
+//   MPFR-backed memoization and careful OpenMP usage.
+// ============================================================================
+
 #include <algorithm>
-#include <sstream>
+#include <cmath>
 #include <cstring>
+#include <sstream>
 #include <unordered_map>
+
 #include "refine_newton.h"
 #include "confirm_zero.h"
 #include "z_calculator.h"
@@ -45,16 +57,14 @@ static inline std::string mpfr_key_hex(const mpfr_t x)
     return key;
 }
 
-// Choose threaded or single Z safely (avoid nested OMP, overheading).
-static inline void compute_Z_dispatch(mpfr_t Z, const mpfr_t t, int use_threaded_z)
+// Choose threaded or single Z safely (avoid nested OMP/overhead).
+static inline void compute_Z_dispatch(mpfr_t Z, const mpfr_t t, int /*use_threaded_z*/)
 {
-    // Make a non-const local copy to match compute_Z / compute_Z_threaded signatures.
+    // Make a non-const local copy to match compute_Z signature.
     mpfr_t t_nc;
     mpfr_init2(t_nc, mpfr_get_prec(t));
     mpfr_set(t_nc, t, MPFR_RNDN);
-
     compute_Z(Z, t_nc);
-
     mpfr_clear(t_nc);
 }
 
@@ -98,13 +108,13 @@ struct ZCache
 #pragma omp critical(ZCACHE)
         {
             auto res = cache.emplace(key, __mpfr_struct{});
-            if (res.second) // inserted
+            if (res.second)
                 mpfr_init2(&res.first->second, P);
             mpfr_set(&res.first->second, Z, MPFR_RNDN);
         }
 #else
         auto res = cache.emplace(key, __mpfr_struct{});
-        if (res.second) // inserted
+        if (res.second)
             mpfr_init2(&res.first->second, P);
         mpfr_set(&res.first->second, Z, MPFR_RNDN);
 #endif
@@ -117,17 +127,17 @@ struct ZCache
     }
 };
 
-// helpers
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 static inline int mpfr_sign(const mpfr_t x) { return mpfr_sgn(x); }
 static inline bool opposite_sign(const mpfr_t a, const mpfr_t b)
 {
-    int sa = mpfr_sign(a), sb = mpfr_sign(b);
+    const int sa = mpfr_sign(a), sb = mpfr_sign(b);
     return sa && sb && (sa != sb);
 }
 
-// Pegasus/Illinois hybrid on an existing bracket [a,b] with fa*fb<0.
-// Stops when |fz|<=tol_abs or |b-a|<=tol_step or max_it.
-// Returns true and sets root to last z; else false with best-so-far z.
+// Pegasus/Illinois hybrid on an existing bracket [a,b] with fa*fb<0]
 static bool pegasus_refine_bracket(
     mpfr_t root,
     mpfr_t a, mpfr_t b, mpfr_t fa, mpfr_t fb,
@@ -138,7 +148,6 @@ static bool pegasus_refine_bracket(
     mpfr_t z, fz, l, s, num, den, tmp;
     mpfr_inits2(P, z, fz, l, s, num, den, tmp, (mpfr_ptr)0);
 
-    // Ensure fa and fb are opposite sign; if not, bail
     if (!opposite_sign(fa, fb))
     {
         mpfr_set(root, a, MPFR_RNDN);
@@ -149,14 +158,14 @@ static bool pegasus_refine_bracket(
     bool ok = false;
     for (int it = 0; it < max_it; ++it)
     {
-        // z = a - fa * (b - a) / (fb - fa)
-        mpfr_sub(l, b, a, MPFR_RNDN);     // l = b - a
-        mpfr_sub(den, fb, fa, MPFR_RNDN); // den = fb - fa
+        // z = a - fa*(b-a)/(fb-fa)
+        mpfr_sub(l, b, a, MPFR_RNDN);
+        mpfr_sub(den, fb, fa, MPFR_RNDN);
         if (mpfr_zero_p(den))
             break;
-        mpfr_mul(num, fa, l, MPFR_RNDN);  // num = fa * (b - a)
-        mpfr_div(s, num, den, MPFR_RNDN); // s = fa*(b-a)/(fb-fa)
-        mpfr_sub(z, a, s, MPFR_RNDN);     // z = a - s
+        mpfr_mul(num, fa, l, MPFR_RNDN);
+        mpfr_div(s, num, den, MPFR_RNDN);
+        mpfr_sub(z, a, s, MPFR_RNDN);
 
         if (!cache.get(z, fz))
         {
@@ -164,13 +173,12 @@ static bool pegasus_refine_bracket(
             cache.put(z, fz);
         }
 
-        // Stop on function tolerance
+        // |fz| tolerance
         mpfr_t absfz;
         mpfr_init2(absfz, P);
         mpfr_abs(absfz, fz, MPFR_RNDN);
         const double absfz_d = mpfr_get_d(absfz, MPFR_RNDN);
         mpfr_clear(absfz);
-
         if (absfz_d <= tol_abs)
         {
             mpfr_set(root, z, MPFR_RNDN);
@@ -178,7 +186,7 @@ static bool pegasus_refine_bracket(
             break;
         }
 
-        // Stop on interval tolerance
+        // interval width tolerance
         mpfr_t absl;
         mpfr_init2(absl, P);
         mpfr_abs(absl, l, MPFR_RNDN);
@@ -191,14 +199,12 @@ static bool pegasus_refine_bracket(
             break;
         }
 
-        // Update bracket with Pegasus scaling
+        // Pegasus scaling on the unchanged endpoint (Illinois fallback if needed)
         if (opposite_sign(fz, fb))
         {
-            // root in [z, b] -> shift a=z, scale fb by m=fb/(fb+fz)
-            // (pegasus scaling on the *unchanged* endpoint)
             mpfr_t m;
             mpfr_init2(m, P);
-            mpfr_add(tmp, fb, fz, MPFR_RNDN); // tmp = fb + fz
+            mpfr_add(tmp, fb, fz, MPFR_RNDN);
             if (!mpfr_zero_p(tmp))
             {
                 mpfr_div(m, fb, tmp, MPFR_RNDN); // m = fb/(fb+fz)
@@ -206,7 +212,7 @@ static bool pegasus_refine_bracket(
             }
             else
             {
-                mpfr_div_ui(fa, fa, 2, MPFR_RNDN); // Illinois fallback
+                mpfr_div_ui(fa, fa, 2, MPFR_RNDN);
             }
             mpfr_set(a, z, MPFR_RNDN);
             mpfr_set(fa, fz, MPFR_RNDN);
@@ -214,10 +220,9 @@ static bool pegasus_refine_bracket(
         }
         else
         {
-            // root in [a, z] -> shift b=z, scale fa by m
             mpfr_t m;
             mpfr_init2(m, P);
-            mpfr_add(tmp, fa, fz, MPFR_RNDN); // tmp = fa + fz
+            mpfr_add(tmp, fa, fz, MPFR_RNDN);
             if (!mpfr_zero_p(tmp))
             {
                 mpfr_div(m, fa, tmp, MPFR_RNDN); // m = fa/(fa+fz)
@@ -225,15 +230,14 @@ static bool pegasus_refine_bracket(
             }
             else
             {
-                mpfr_div_ui(fb, fb, 2, MPFR_RNDN); // Illinois fallback
+                mpfr_div_ui(fb, fb, 2, MPFR_RNDN);
             }
             mpfr_set(b, z, MPFR_RNDN);
             mpfr_set(fb, fz, MPFR_RNDN);
             mpfr_clear(m);
         }
 
-        // Keep best-so-far
-        mpfr_set(root, z, MPFR_RNDN);
+        mpfr_set(root, z, MPFR_RNDN); // best-so-far
     }
 
     mpfr_clears(z, fz, l, s, num, den, tmp, (mpfr_ptr)0);
@@ -251,11 +255,15 @@ static inline double stage_step_tol(const mpfr_t t, double tol_abs)
 static inline double choose_h(const mpfr_t t)
 {
     const double s = est_spacing(t);
-    const double eps = std::ldexp(1.0, -(int)CFG().mpfr_prec);
+    const double eps = std::ldexp(1.0, -(int)CFG().mpfr_prec); // 2^(-P)
     const double mag = std::max(1.0, std::fabs(mpfr_get_d(t, MPFR_RNDN)));
     const double h0 = std::pow(eps, 1.0 / 3.0) * mag;
     return std::clamp(h0, 1e-9, 0.1 * s);
 }
+
+// ---------------------------------------------------------------------------
+// Derivatives
+// ---------------------------------------------------------------------------
 
 // 2-point forward: Z'(t) ≈ (Z(t+h) - Z(t)) / h
 static inline void diff_Z_2pt(mpfr_t dZ, const mpfr_t t, double h, int use_threaded_z, ZCache &cache)
@@ -428,6 +436,9 @@ static inline void diff_Z_5pt(mpfr_t dZ, const mpfr_t t, double h, int use_threa
     mpfr_clears(tp2, tp1, tm1, tm2, Zp2, Zp1, Zm1, Zm2, num, term, (mpfr_ptr)0);
 }
 
+// ---------------------------------------------------------------------------
+// Step control
+// ---------------------------------------------------------------------------
 static inline bool backtrack_step(
     mpfr_t t,
     const mpfr_t Zcur,
@@ -558,6 +569,9 @@ static inline bool descent_nudge(mpfr_t t, int use_threaded_z, ZCache &cache)
     return moved;
 }
 
+// ---------------------------------------------------------------------------
+// Main entry
+// ---------------------------------------------------------------------------
 bool newton_refine_root_thread(
     mpfr_t t_out,
     const mpfr_t t0,
@@ -569,6 +583,7 @@ bool newton_refine_root_thread(
     omp_diag("startup");
 
     ZCache cache(CFG().mpfr_prec);
+
     mpfr_t t, Z, dZ, delta, t_prev, Z_prev;
     mpfr_inits2(CFG().mpfr_prec, t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
 
@@ -592,7 +607,6 @@ bool newton_refine_root_thread(
         // maintain/update a bracket when we see a sign change with previous iterate
         if (have_prev && opposite_sign(Z_prev, Z))
         {
-            // keep the narrower (better) bracket if we already had one
             if (!have_bracket)
             {
                 mpfr_set(br_a, t_prev, MPFR_RNDN);
@@ -603,7 +617,6 @@ bool newton_refine_root_thread(
             }
             else
             {
-                // compare widths and keep the tighter one
                 mpfr_t new_w, old_w;
                 mpfr_inits2(CFG().mpfr_prec, new_w, old_w, (mpfr_ptr)0);
                 mpfr_sub(new_w, t, t_prev, MPFR_RNDN);
@@ -621,6 +634,7 @@ bool newton_refine_root_thread(
             }
         }
 
+        // stop on |Z| tolerance
         mpfr_t absZ;
         mpfr_init2(absZ, CFG().mpfr_prec);
         mpfr_abs(absZ, Z, MPFR_RNDN);
@@ -630,10 +644,12 @@ bool newton_refine_root_thread(
         {
             mpfr_set(t_out, t, MPFR_RNDN);
             mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+            mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
             return true;
         }
 
-        double h = choose_h(t);
+        // derivative ladder: 2-pt -> 3-pt -> 5-pt
+        const double h = choose_h(t);
         diff_Z_2pt(dZ, t, h, use_threaded_z, cache);
 
         bool dZ_ok = !mpfr_zero_p(dZ);
@@ -658,6 +674,7 @@ bool newton_refine_root_thread(
             dZ_ok = !mpfr_zero_p(dZ);
         }
 
+        // delta = Z/dZ or secant fallback
         if (!dZ_ok)
         {
             if (have_prev)
@@ -689,6 +706,7 @@ bool newton_refine_root_thread(
             mpfr_div(delta, Z, dZ, MPFR_RNDN);
         }
 
+        // clamp step within one valley
         const double s = est_spacing(t);
         const double step_max = 0.7 * s;
         double d_abs = std::fabs(mpfr_get_d(delta, MPFR_RNDN));
@@ -703,25 +721,27 @@ bool newton_refine_root_thread(
         {
             mpfr_set(t_out, t, MPFR_RNDN);
             mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+            mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
             return true;
         }
 
+        // save for secant
         mpfr_set(t_prev, t, MPFR_RNDN);
         mpfr_set(Z_prev, Z, MPFR_RNDN);
         have_prev = true;
 
+        // backtrack; if fail and we have a bracket, try Pegasus burst
         if (!backtrack_step(t, Z, delta, use_threaded_z, cache))
         {
-            // If we have a bracket, use a few Pegasus/Illinois steps to jump safely.
             if (have_bracket)
             {
                 mpfr_t z_br;
                 mpfr_init2(z_br, CFG().mpfr_prec);
-                bool ok_pega = pegasus_refine_bracket(
+                const bool ok_pega = pegasus_refine_bracket(
                     z_br, br_a, br_b, br_fa, br_fb,
-                    /*tol_abs*/ tol_abs, /*tol_step*/ tol_step,
+                    /*tol_abs*/ tol_abs,
+                    /*tol_step*/ stage_step_tol(t, tol_abs),
                     /*max_it*/ 12, use_threaded_z, cache);
-                // Move to bracketed z if it helps; then continue Newton loop
                 if (ok_pega)
                 {
                     mpfr_set(t, z_br, MPFR_RNDN);
@@ -730,8 +750,6 @@ bool newton_refine_root_thread(
                 }
                 mpfr_clear(z_br);
             }
-
-            // No bracketed help? fall back to the original nudge/step
             if (!descent_nudge(t, use_threaded_z, cache))
             {
                 mpfr_sub(t, t, delta, MPFR_RNDN);
@@ -739,7 +757,9 @@ bool newton_refine_root_thread(
         }
     }
 
+    // no convergence: return last t
     mpfr_set(t_out, t, MPFR_RNDN);
     mpfr_clears(t, Z, dZ, delta, t_prev, Z_prev, (mpfr_ptr)0);
+    mpfr_clears(br_a, br_b, br_fa, br_fb, (mpfr_ptr)0);
     return false;
 }

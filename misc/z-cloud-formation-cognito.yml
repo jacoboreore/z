@@ -8,7 +8,7 @@ Parameters:
     Description: Prefix for named resources
   LoginLambdaRoleName:
     Type: String
-    Description: Existing IAM role name used by your LOGIN Lambda (not the function name)
+    Description: Existing IAM role name used by the LOGIN Lambda
   AccessTokenValidityHours:
     Type: Number
     Default: 1
@@ -106,5 +106,5 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-AppClientId"
   LoginLambdaAttachedPolicy:
-    Description: IAM policy attached to your login Lambda role
+    Description: IAM policy attached the login Lambda role
     Value: !Ref LoginLambdaCognitoPolicy

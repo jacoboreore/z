@@ -1,4 +1,22 @@
-// logs.h
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: logs.h
+// Purpose:
+//   Minimal, MPFR-aware logging utilities with optional file output and
+//   thread-safe emission. Provides three convenience macros:
+//
+//     - LOGMP(...)       : normal logs (honors g_main_log)
+//     - LOGMPF(...)      : forced logs (always emit; ignores g_main_log)
+//     - LOGMP_DEBUG(...) : debug logs (honors g_enable_log_debug)
+//
+//   All three accept printf-like format strings compatible with mpfr_asprintf,
+//   so you can print mpfr_t via %Rg / %Rf, etc.
+//
+// -----------------------------------------------------------------------------
+
 #pragma once
 #include <iostream>
 #include <iomanip>
@@ -19,17 +37,40 @@
 #endif
 
 // ================== Global controls ==================
-inline bool g_main_log = true;         // main logger on/off
-inline bool g_enable_log_debug = true; // debug logger on/off
 
-// File logging state
+/**
+ * @brief Master switch for normal logs (used by LOGMP).
+ * @note Forced logs (LOGMPF) ignore this flag.
+ */
+inline bool g_main_log = true;
+
+/**
+ * @brief Master switch for debug logs (used by LOGMP_DEBUG).
+ */
+inline bool g_enable_log_debug = true;
+
+/** @brief Output file stream for logs (if enabled). */
 inline std::ofstream g_log_file;
-inline bool g_log_to_file = false;    // write to file?
-inline bool g_log_also_stdout = true; // echo to stdout too?
+
+/** @brief When true, write logs to @ref g_log_file (see init_logger). */
+inline bool g_log_to_file = false;
+
+/** @brief When true, also echo logs to stdout (besides file). */
+inline bool g_log_also_stdout = true;
+
+/** @brief Global mutex to serialize log writes across threads. */
 inline std::mutex g_log_mutex;
+
+/** @brief Absolute path of the active log file (if any). */
 inline std::string g_log_filename;
 
-// Date-Time helper
+// ================== Date/Time helpers ==================
+
+/**
+ * @brief Current local timestamp as "YYYY-MM-DD HH:MM:SS".
+ * @return Formatted timestamp string.
+ * @threadsafe Uses only local temporaries.
+ */
 inline std::string current_timestamp()
 {
     using namespace std::chrono;
@@ -46,7 +87,9 @@ inline std::string current_timestamp()
     return oss.str();
 }
 
-// Filename helpers, process ID to the name plus the current date
+/**
+ * @brief Return current process identifier as unsigned long.
+ */
 inline unsigned long current_pid()
 {
 #if defined(_WIN32)
@@ -56,6 +99,15 @@ inline unsigned long current_pid()
 #endif
 }
 
+/**
+ * @brief Build a log filename under @p dir with prefix + timestamp + pid.
+ *
+ * Pattern: <prefix>_YYYYMMDD_HHMMSS_pid<NNN>.log
+ *
+ * @param dir    Output directory (created if missing).
+ * @param prefix Filename prefix (e.g., "valley_scanner" or job-id variant).
+ * @return Absolute/relative path as string.
+ */
 inline std::string make_log_filename(const std::string &dir = "logs",
                                      const std::string &prefix = "valley_scanner")
 {
@@ -76,11 +128,25 @@ inline std::string make_log_filename(const std::string &dir = "logs",
 
     std::ostringstream oss;
     oss << prefix << "_" << tb << "_pid" << current_pid() << ".log";
-    
     return (fs::path(dir) / oss.str()).string();
 }
 
-// Init / shutdown
+// ================== Init / shutdown ==================
+
+/**
+ * @brief Initialize logging sinks.
+ *
+ * Opens a new file at logs/<prefix>_YYYYMMDD_HHMMSS_pidXXXX.log and writes an
+ * opening banner line. Also configures whether to mirror to stdout.
+ *
+ * @param dir          Directory for log files (created if missing).
+ * @param prefix       Filename prefix (you often use a job-id here).
+ * @param also_stdout  When true, echo logs to stdout in addition to file.
+ * @return true if file logging is available (file could be opened).
+ *
+ * @note Even if file logging fails, logs can still go to stdout if
+ *       @p also_stdout is true.
+ */
 inline bool init_logger(const std::string &dir = "logs",
                         const std::string &prefix = "valley_scanner",
                         bool also_stdout = true)
@@ -99,6 +165,10 @@ inline bool init_logger(const std::string &dir = "logs",
     return g_log_to_file;
 }
 
+/**
+ * @brief Flush and close the active log file (if any).
+ * @post g_log_to_file becomes false.
+ */
 inline void shutdown_logger()
 {
     std::lock_guard<std::mutex> lock(g_log_mutex);
@@ -111,10 +181,28 @@ inline void shutdown_logger()
     g_log_to_file = false;
 }
 
-// expose the filename
+/**
+ * @brief Get the absolute/relative path of the active log file.
+ * @return Reference to internal string (valid until next init_logger).
+ */
 inline const std::string &log_filename() { return g_log_filename; }
 
-// Core logging
+// ================== Core logging backend ==================
+
+/**
+ * @brief Internal logger used by the public macros.
+ *
+ * @param file        Caller’s __FILE__.
+ * @param line        Caller’s __LINE__.
+ * @param msg         Preformatted log message.
+ * @param precision   (Reserved) decimal precision hint for future formatters.
+ * @param force_log   If true, bypass g_main_log/g_enable_log_debug checks.
+ * @param type        1 = normal/info; 2 = debug.
+ *
+ * @note This routine is thread-safe. It holds the global mutex while
+ *       writing to file/stdout, and flushes the file per line to support
+ *       real-time tailing.
+ */
 inline void log_msg_internal(const char *file,
                              int line,
                              const std::string &msg,
@@ -153,7 +241,20 @@ inline void log_msg_internal(const char *file,
     }
 }
 
-// ================== MPFR-aware macros ==================
+// ================== MPFR-aware convenience macros ==================
+
+/**
+ * @def LOGMP(fmt, ...)
+ * @brief Emit a normal log line using mpfr_asprintf-style formatting.
+ * @details Honors @ref g_main_log (no output if false).
+ *
+ * Usage:
+ * @code
+ * mpfr_t t; mpfr_init2(t, 200);
+ * // ...
+ * LOGMP("t=%.*Rf |Z|=%.*Rg", 24, t, 24, absZ);
+ * @endcode
+ */
 #define LOGMP(fmt, ...)                                         \
     do                                                          \
     {                                                           \
@@ -168,6 +269,11 @@ inline void log_msg_internal(const char *file,
         log_msg_internal(__FILE__, __LINE__, _s, 15, false, 1); \
     } while (0)
 
+/**
+ * @def LOGMPF(fmt, ...)
+ * @brief Emit a forced log line (always prints regardless of switches).
+ * @details Ignores @ref g_main_log; still goes to file/stdout per settings.
+ */
 #define LOGMPF(fmt, ...)                                       \
     do                                                         \
     {                                                          \
@@ -182,6 +288,11 @@ inline void log_msg_internal(const char *file,
         log_msg_internal(__FILE__, __LINE__, _s, 15, true, 1); \
     } while (0)
 
+/**
+ * @def LOGMP_DEBUG(fmt, ...)
+ * @brief Emit a debug log line using mpfr_asprintf-style formatting.
+ * @details Honors @ref g_enable_log_debug (no output if false).
+ */
 #define LOGMP_DEBUG(fmt, ...)                                   \
     do                                                          \
     {                                                           \

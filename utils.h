@@ -1,3 +1,15 @@
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: best_state.h
+// Purpose:
+//   Thread-safe tracking of the best (smallest) observed |Z(t)| during scans,
+//   plus simple remainder/radius utilities and a safe MPFR→long double caster.
+//
+// -----------------------------------------------------------------------------
+
 #pragma once
 #include <mpfr.h>
 #include <string>
@@ -22,7 +34,8 @@ void best_get(mpfr_t out_t, mpfr_t out_absZ);   // copy out a snapshot (thread-s
 
 inline std::string mpfr_to_string(mpfr_srcptr x, int digits, char mode = 'g')
 {
-    if (x == nullptr) return "";
+    if (x == nullptr)
+        return "";
 
     // mode: 'f' fixed, 'e' scientific, 'g' general
     char fmt[8]; // e.g. "%.*Rg"

@@ -1,3 +1,17 @@
+// -----------------------------------------------------------------------------
+// Valley Scanner © 2025 Jacob Orellana
+// All rights reserved. Redistribution and use in source or binary forms
+// are permitted only with explicit written permission of the author.
+//
+// File: crash_handlers.hpp
+// Purpose:
+//   Lightweight cross-platform crash/exception signal handling.
+//   • Installs handlers for common fatal signals (SIGSEGV, SIGABRT, SIGFPE, SIGILL).
+//   • On POSIX (Unix/macOS), prints a best-effort backtrace to stderr.
+//   • Exits the process with 128 + signal code (conventional shell status).
+//
+// -----------------------------------------------------------------------------
+
 #pragma once
 
 #include <csignal>
@@ -9,6 +23,13 @@
 #include <execinfo.h>
 #endif
 
+/**
+ * @brief Emit a best-effort stack backtrace to stderr.
+ * @details
+ *   POSIX: uses backtrace()/backtrace_symbols_fd() from execinfo.h.
+ *   Non-POSIX: prints a placeholder message (no backtrace available).
+ * @note Intended for use inside a signal handler; avoids heap allocations.
+ */
 inline void os_dump_stack()
 {
 #if defined(__unix__) || defined(__APPLE__)
@@ -22,6 +43,14 @@ inline void os_dump_stack()
 #endif
 }
 
+/**
+ * @brief Resolve a textual signal name for logging.
+ * @param sig Numeric signal identifier (e.g., SIGSEGV).
+ * @return Human-readable signal name (best effort; never null).
+ * @details
+ *   POSIX: uses strsignal().
+ *   Non-POSIX: returns a small static mapping for common signals.
+ */
 inline const char *os_signal_name(int sig)
 {
 #if defined(__unix__) || defined(__APPLE__)
@@ -49,6 +78,11 @@ inline const char *os_signal_name(int sig)
 #endif
 }
 
+/**
+ * @brief Common crash signal handler: prints signal & backtrace, then terminates.
+ * @param sig Received signal number.
+ * @note Uses std::_Exit(128+sig) to avoid running static destructors/re-entry.
+ */
 inline void os_signal_handler(int sig)
 {
     const char *name = os_signal_name(sig);
@@ -57,6 +91,13 @@ inline void os_signal_handler(int sig)
     std::_Exit(128 + sig);
 }
 
+/**
+ * @brief Install crash handlers for common fatal signals.
+ * @details
+ *   POSIX: installs via sigaction with SA_RESETHAND for SIGSEGV/SIGABRT/SIGFPE/SIGILL.
+ *   Others: uses std::signal for the same set.
+ * @note Call this early in main() to capture faults during initialization.
+ */
 inline void install_crash_handlers()
 {
 #if defined(__unix__) || defined(__APPLE__)
