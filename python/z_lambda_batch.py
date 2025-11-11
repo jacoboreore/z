@@ -2,9 +2,8 @@ import os, json, base64, uuid, boto3
 from string import Template
 import logging
 
-
 EC2 = boto3.client("ec2")
-S3 = boto3.client('s3')
+S3  = boto3.client("s3")
 
 # --- Required env vars ---
 SUBNET_ID             = os.environ.get("SUBNET_ID")
@@ -14,19 +13,23 @@ S3_BUCKET             = os.environ["S3_BUCKET"]
 AWS_REGION            = os.environ.get("AWS_REGION", "us-east-1")
 
 # --- autosize CPU ---
-INSTANCE_TYPE_SMALL   = os.environ.get("INSTANCE_TYPE_SMALL", "c7i.8xlarge")
-INSTANCE_TYPE_LARGE   = os.environ.get("INSTANCE_TYPE_LARGE", "c7i.16xlarge")
-INSTANCE_TYPE_XLARGE   = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.24xlarge")
-INSTANCE_TYPE_HUGE   = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.48xlarge")
+INSTANCE_TYPE_SMALL   = os.environ.get("INSTANCE_TYPE_SMALL",  "c7i.8xlarge")
+INSTANCE_TYPE_LARGE   = os.environ.get("INSTANCE_TYPE_LARGE",  "c7i.16xlarge")
+INSTANCE_TYPE_XLARGE  = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.24xlarge")
+INSTANCE_TYPE_HUGE    = os.environ.get("INSTANCE_TYPE_HUGE",   "c7i.48xlarge")
 
-# Optional: name the thresholds explicitly (as floats)
-THRESH_SMALL_MAX  = 1e8     # t <= 1e10 → SMALL
-THRESH_LARGE_MAX  = 1e12     # (1e10, 1e14] → LARGE
-THRESH_XLARGE_MAX = 1e16     # (1e14, 1e18) → XLARGE
-THRESH_HUGE_MAX   = 1e21     # [1e18, 1e21] → HUGe (and above → HUGe)
+# Thresholds
+THRESH_SMALL_MAX   = 1e8
+THRESH_LARGE_MAX   = 1e12
+THRESH_XLARGE_MAX  = 1e16
+THRESH_HUGE_MAX    = 1e21
 
-#T_THRESHOLD           = float(os.environ.get("T_THRESHOLD", "1e10"))
-USE_SPOT              = os.environ.get("USE_SPOT", "false").lower() == "true"
+USE_SPOT = os.environ.get("USE_SPOT", "false").lower() == "true"
+
+# --- Hard limits ---
+T_MAX_HARD       = 9_999_999_999_999_999
+ZEROS_MAX_HARD   = 25
+ZEROS_MIN_HARD   = 1
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -40,33 +43,28 @@ def load_user_data_from_s3(bucket: str, key: str, variables: dict) -> str:
     except Exception as e:
         raise RuntimeError(f"Failed to fetch user-data template: {e}")
 
-    # Use safe_substitute so $JOB_ID, $USR, ${ZEROS_CSV}, etc. are left as-is if not provided
     tmpl = Template(text)
     return tmpl.safe_substitute(variables)
 
 def _pick_instance_type(t_val: float) -> str:
-    """
-    Ranges:
-      - t <= 1e10                     → SMALL
-      - 1e10 < t <= 1e14              → LARGE
-      - 1e14 < t <  1e18              → XLARGE
-      - 1e18 <= t <= 1e21 (and above) → HUGE
-    """
     if t_val <= THRESH_SMALL_MAX:
-        choice = INSTANCE_TYPE_SMALL
+        return INSTANCE_TYPE_SMALL
     elif t_val <= THRESH_LARGE_MAX:
-        choice = INSTANCE_TYPE_LARGE
-    elif t_val < THRESH_XLARGE_MAX:  # strictly less than 1e18 to avoid gap
-        choice = INSTANCE_TYPE_XLARGE
+        return INSTANCE_TYPE_LARGE
+    elif t_val < THRESH_XLARGE_MAX:
+        return INSTANCE_TYPE_XLARGE
     else:
-        # includes [1e18, 1e21] and anything > 1e21
-        choice = INSTANCE_TYPE_HUGE
+        return INSTANCE_TYPE_HUGE
 
-    logger.info(f"_pick_instance_type: t={t_val} → {choice}")
-    return choice
+def _validate_limits(t_val: float, zeros_val: int):
+    """Return error message if limits exceeded, else None."""
+    if t_val < 0 or t_val > T_MAX_HARD:
+        return f"t={t_val} is outside valid range (0 ≤ t ≤ {T_MAX_HARD})"
+    if zeros_val < ZEROS_MIN_HARD or zeros_val > ZEROS_MAX_HARD:
+        return f"zeros={zeros_val} is outside valid range ({ZEROS_MIN_HARD}–{ZEROS_MAX_HARD})"
+    return None
 
 def lambda_handler(event, context):
-    # Expect {"image":"ami-...", "t": <number|string>, "zeros": <number|string>}
     body = event.get("body")
     if isinstance(body, str):
         body = json.loads(body or "{}")
@@ -75,20 +73,32 @@ def lambda_handler(event, context):
 
     image = body.get("image")
     t     = body.get("t")
-    zeros = body.get("zeros")  # total zeros target
+    zeros = body.get("zeros")
 
     if not image or t is None or zeros is None:
         return {"statusCode": 400, "body": json.dumps({"error": "image, zeros and t are required"})}
 
     try:
         t_val = float(t)
+        zeros_val = int(float(zeros))
     except Exception:
-        return {"statusCode": 400, "body": json.dumps({"error": "t must be numeric"})}
+        return {"statusCode": 400, "body": json.dumps({"error": "t and zeros must be numeric"})}
 
-    try:
-        zeros_val = int(float(zeros))  # accept "1000" or "1000.0"
-    except Exception:
-        return {"statusCode": 400, "body": json.dumps({"error": "zeros must be numeric"})}
+    # --- Validate limits before doing anything else ---
+    err = _validate_limits(t_val, zeros_val)
+    if err:
+        logger.warning(f"Rejected job: {err}")
+        return {
+            "statusCode": 400,
+            "body": json.dumps({
+                "error": err,
+                "limits": {
+                    "t_max": T_MAX_HARD,
+                    "zeros_min": ZEROS_MIN_HARD,
+                    "zeros_max": ZEROS_MAX_HARD
+                }
+            })
+        }
 
     job_id = str(uuid.uuid4())
     instance_type = _pick_instance_type(t_val)
@@ -113,9 +123,9 @@ def lambda_handler(event, context):
         "TagSpecifications": [{
             "ResourceType": "instance",
             "Tags": [
-                {"Key":"Name",   "Value": f"z-job-{job_id}"},
-                {"Key":"z:jobId","Value": job_id},
-                {"Key":"z:t",    "Value": str(t_val)},
+                {"Key": "Name",    "Value": f"z-job-{job_id}"},
+                {"Key": "z:jobId", "Value": job_id},
+                {"Key": "z:t",     "Value": str(t_val)},
             ],
         }],
         "NetworkInterfaces": [{
@@ -141,6 +151,6 @@ def lambda_handler(event, context):
             "jobId": job_id,
             "instanceId": instance_id,
             "instanceType": instance_type,
-            "message": "Launched. Schedulers (10s) enabled for JSON+S3; job will upload and halt."
+            "message": "Launched successfully. Scheduler active for JSON+S3 output."
         })
     }

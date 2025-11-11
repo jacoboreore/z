@@ -22,7 +22,7 @@ WORKDIR /src
 COPY . .
 
 # Build args: NATIVE=1 turns on -march=native
-ARG NATIVE=1
+ARG NATIVE=0
 # Common compile-time flags for mpfrc++
 # ENV CPPFLAGS="-DOS_USE_MPFR -DMPFR_USE_NO_MACRO -DMPFR_USE_INTMAX_T -I${MPREAL_INC} -include stdint.h"
 ENV CPPFLAGS="-DMPFR_USE_NO_MACRO -DMPFR_USE_INTMAX_T -I${MPREAL_INC} -include stdint.h"
