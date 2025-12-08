@@ -1,6 +1,7 @@
 import os, json, base64, uuid, boto3
 from string import Template
 import logging
+from decimal import Decimal
 
 EC2 = boto3.client("ec2")
 S3  = boto3.client("s3")
@@ -27,7 +28,7 @@ THRESH_HUGE_MAX    = 1e21
 USE_SPOT = os.environ.get("USE_SPOT", "false").lower() == "true"
 
 # --- Hard limits ---
-T_MAX_HARD       = 9_999_999_999_999_999
+T_MAX_HARD       = 9999999999999999
 ZEROS_MAX_HARD   = 25
 ZEROS_MIN_HARD   = 1
 
@@ -58,8 +59,8 @@ def _pick_instance_type(t_val: float) -> str:
 
 def _validate_limits(t_val: float, zeros_val: int):
     """Return error message if limits exceeded, else None."""
-    if t_val < 0 or t_val > T_MAX_HARD:
-        return f"t={t_val} is outside valid range (0 ≤ t ≤ {T_MAX_HARD})"
+    if t_val <= 14 or t_val > T_MAX_HARD:
+        return f"t={t_val} is outside valid range (14 ≤ t ≤ {T_MAX_HARD})"
     if zeros_val < ZEROS_MIN_HARD or zeros_val > ZEROS_MAX_HARD:
         return f"zeros={zeros_val} is outside valid range ({ZEROS_MIN_HARD}–{ZEROS_MAX_HARD})"
     return None
@@ -79,7 +80,7 @@ def lambda_handler(event, context):
         return {"statusCode": 400, "body": json.dumps({"error": "image, zeros and t are required"})}
 
     try:
-        t_val = float(t)
+        t_val = Decimal(t)
         zeros_val = int(float(zeros))
     except Exception:
         return {"statusCode": 400, "body": json.dumps({"error": "t and zeros must be numeric"})}
