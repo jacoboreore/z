@@ -115,7 +115,7 @@ bool compute_rs_chunk_from_precalc(
     if (n0 < 1 || n1 < n0)
         return false;
 
-    mpfr_prec_t P = pre.prec;
+    mpfr_prec_t P = CFG().mpfr_prec;
 
     mpfr_t t, theta, sum, n_mp, sqrt_n, logn, phi, cphi;
     mpfr_inits2(P, t, theta, sum, n_mp, sqrt_n, logn, phi, cphi, (mpfr_ptr)0);
