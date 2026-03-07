@@ -20,7 +20,6 @@ def parse_precalc(path):
             k, v = line.split("=", 1)
             data[k] = v
     data["N"] = int(data["N"])
-    data["prec"] = int(data["prec"])
     return data
 
 
@@ -85,6 +84,8 @@ def main():
 
     run_precalc(t_str)
     pre = parse_precalc(PRE_FILE)
+    
+    gabcke = Decimal(pre["gabcke"].replace("E", "e"))
 
     print(f"\nComputed N = {pre['N']}")
     ranges = build_ranges(pre["N"], num_chunks)
@@ -103,11 +104,13 @@ def main():
         total += row["sum"]
 
     zmain = Decimal(2) * total
+    ztotal = zmain + gabcke
 
     print("\nFinal assembly:")
     print("sum(chunks) =", total)
     print("Zmain = 2 * sum(chunks) =", zmain)
-
+    print("Gabcke =", gabcke)
+    print("Ztotal =", ztotal)
 
 if __name__ == "__main__":
     main()

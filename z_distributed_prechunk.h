@@ -6,9 +6,10 @@
 struct PrecalcData
 {
     long N;
-    mpfr_prec_t prec;
     std::string theta_str;
     std::string t_str;
+    std::string gabcke_str;
+    int useC1C2;
 };
 
 // -----------------------------------------------------------------------------

@@ -44,9 +44,11 @@ bool write_precalc_file(const std::string &path, const PrecalcData &data)
         return false;
 
     f << "N=" << data.N << "\n";
-    f << "prec=" << data.prec << "\n";
     f << "t=" << data.t_str << "\n";
     f << "theta=" << data.theta_str << "\n";
+    f << "gabcke=" << data.gabcke_str << "\n";
+    f << "useC1C2=" << data.useC1C2 << "\n";
+
     return true;
 }
 
@@ -71,12 +73,14 @@ bool read_precalc_file(const std::string &path, PrecalcData &data)
 
         if (key == "N")
             data.N = std::stol(val);
-        else if (key == "prec")
-            data.prec = static_cast<mpfr_prec_t>(std::stol(val));
         else if (key == "t")
             data.t_str = val;
         else if (key == "theta")
             data.theta_str = val;
+        else if (key == "gabcke")
+            data.gabcke_str = val;
+        else if (key == "useC1C2")
+            data.useC1C2 = std::stoi(val);
     }
 
     return true;
@@ -85,7 +89,6 @@ bool read_precalc_file(const std::string &path, PrecalcData &data)
 bool compute_precalc_data(const mpfr_t t, PrecalcData &out)
 {
     mpfr_prec_t P = CFG().mpfr_prec;
-    out.prec = P;
     out.t_str = mpfr_to_string(t, 80);
 
     Constants C(P);
@@ -101,6 +104,19 @@ bool compute_precalc_data(const mpfr_t t, PrecalcData &out)
 
     out.N = N;
     out.theta_str = mpfr_to_string(theta, 80);
+
+    // Gabcke correction
+    DiffWeights W;
+    mpfr_t R1;
+    mpfr_init2(R1, P);
+
+    bool useC1C2 = true;
+    R_gabcke(R1, t, P, useC1C2, &W, C);
+
+    out.gabcke_str = mpfr_to_string(R1, 80);
+    out.useC1C2 = useC1C2 ? 1 : 0;
+
+    mpfr_clear(R1);
 
     mpfr_clears(theta, a_mp, p_mp, (mpfr_ptr)0);
     return true;
