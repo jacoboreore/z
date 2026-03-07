@@ -36,3 +36,7 @@ data/
 *.csv.gz
 logs/
 *.log
+
+# tests
+z.exe
+chunk_results.txt

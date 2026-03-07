@@ -33,6 +33,7 @@ SOURCES =                     \
   z_ball.cpp                  \
   refine_newton.cpp           \
   refine_newton_thread.cpp    \
+  z_distributed_prechunk.cpp  \
   settings.cpp                \
   cli.cpp                     \
   utils.cpp                   \

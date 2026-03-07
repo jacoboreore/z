@@ -34,6 +34,8 @@ struct Options
         Refine,
         Refine_Progressive,
         Pre_filter,
+        Z_Distributed_Precalc,
+        Z_Distributed_Chunk
     } mode;
 
     std::string t_str;      // raw decimal string for t

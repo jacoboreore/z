@@ -26,6 +26,8 @@
 
 #include "cli.h"
 
+int local_argc;
+
 /**
  * @brief Validate that a string represents a finite numeric value.
  *
@@ -66,6 +68,7 @@ static bool mpfr_num_ok(const char *s)
 void print_usage(const char *prog)
 {
     std::cerr
+        << "Received: " << local_argc << " arguments\n"
         << "Usage:\n"
         << "  " << prog << " z <t> <job_id>\n"
         << "      Compute Z(t) at a single point.\n\n"
@@ -91,10 +94,12 @@ void print_usage(const char *prog)
         << "  " << prog << " z_os <t> <job_id>\n"
         << "      Compute Z(t) using the Odlyzko–Schönhage algorithm.\n\n"
 
-        << "Examples:\n"
-        << "  " << prog << " z 10000000  job_01\n"
-        << "  " << prog << " valley_walk 10000000 50 job_02\n"
-        << "  " << prog << " refine_progressive results/zeros_1e15.csv job_03\n\n";
+        << "  " << prog << " z_distributed_precalc <t> <job_id>\n"
+        << "      Compute precalc for distributed z.\n\n"
+        
+        << "  " << prog << " z_distributed_chunk <file> <chunk_id> <start> <end> <job_id>\n"
+        << "      Compute precalc for distributed z.\n\n";
+
 }
 
 /**
@@ -114,11 +119,24 @@ void print_usage(const char *prog)
  */
 bool parse_cli(int argc, char **argv, Options &out)
 {
+    // print the arguments:
+    std::cout << "Program arguments:" << std::endl;
+
+    // Loop from index 0 to argc - 1
+    for (int i = 0; i < argc; i++) {
+        // argv[0] is typically the name of the executable itself
+        std::cout << "Argument " << i << ": " << argv[i] << std::endl;
+    }
+
+    std::cout << "parsing... \n ";
+
     if (argc < 3)
     {
         print_usage(argv[0]);
         return false;
     }
+
+    local_argc = argc;
 
     // Normalize mode to lowercase for comparison
     std::string mode = argv[1];
@@ -264,10 +282,42 @@ bool parse_cli(int argc, char **argv, Options &out)
         out.mode = Options::Mode::Z_OS;
         out.t_str = argv[2];
     }
+    // ---------------------- Z_Distributed_Precalc -----------------------------
+    else if (mode == "z_distributed_precalc")
+    {
+        if (argc != 4)
+        {
+            std::cerr << "[error] z_distributed_precalc requires 1 number (t) and a string (job_id)\n";
+            print_usage(argv[0]);
+            return false;
+        }
+
+        if (!mpfr_num_ok(argv[2]))
+        {
+            std::cerr << "[error] invalid number for t: " << argv[2] << "\n";
+            return false;
+        }
+
+        out.mode = Options::Mode::Z_Distributed_Precalc;
+        out.t_str = argv[2];
+    }
+    // ---------------------- Z_Distributed_Chunk -----------------------------
+    else if (mode == "z_distributed_chunk")
+    {
+        if (argc != 8)
+        {
+            std::cerr << "[error] z_distributed_chunk requires 1 string (file), 3 numbers (chunk_id, start, end), a string chunk_file, and a string (job_id)\n";
+            print_usage(argv[0]);
+            return false;
+        }
+
+        out.mode = Options::Mode::Z_Distributed_Chunk;
+        out.t_str = argv[2];
+    }
     // ---------------------- UNKNOWN --------------------------
     else
     {
-        std::cerr << "[error] unknown mode: " << argv[1] << "\n";
+        std::cerr << "[error] unknown mode: '" << argv[1] << "'\n";
         print_usage(argv[0]);
         return false;
     }

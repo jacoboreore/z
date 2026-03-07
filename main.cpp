@@ -34,6 +34,7 @@
 #include "crash_handlers.hpp"
 #include "file.h"
 #include "custom_y.h"
+#include "z_distributed_prechunk.h"
 
 /**
  * @brief Program entry point for Valley Scanner CLI.
@@ -120,7 +121,10 @@ int main(int argc, char **argv)
     mpfr_t t;
     mpfr_init2(t, CFG().mpfr_prec);
 
-    if (opt.mode != Options::Mode::Refine_Progressive)
+    if (
+        opt.mode != Options::Mode::Refine_Progressive
+        && opt.mode != Options::Mode::Z_Distributed_Chunk
+    )
     {
         if (mpfr_set_str(t, opt.t_str.c_str(), 10, MPFR_RNDN) != 0)
         {
@@ -395,6 +399,72 @@ int main(int argc, char **argv)
         mpfr_printf("t os = %.*Rf\n", 30, new_t_from_os);
 
         mpfr_clears(new_t_from_os, step_os, (mpfr_ptr)0);
+    }
+    else if (opt.mode == Options::Mode::Z_Distributed_Precalc)
+    {
+        std::string t_str = opt.t_str;
+        std::string pre_file = "output/pre_calc.txt";
+
+        mpfr_prec_t P = CFG().mpfr_prec;
+        mpfr_t t;
+        mpfr_init2(t, P);
+
+        if (mpfr_set_str(t, t_str.c_str(), 10, MPFR_RNDN) != 0)
+        {
+            std::cerr << "Invalid t\n";
+            mpfr_clear(t);
+            return 1;
+        }
+
+        PrecalcData pre;
+        if (!compute_precalc_data(t, pre))
+        {
+            std::cerr << "Failed to compute precalc data\n";
+            mpfr_clear(t);
+            return 1;
+        }
+
+        if (!write_precalc_file(pre_file, pre))
+        {
+            std::cerr << "Failed to write precalc file\n";
+            mpfr_clear(t);
+            return 1;
+        }
+
+        std::cout << "Precalc written to " << pre_file << "\n";
+        std::cout << "N=" << pre.N << "\n";
+
+        mpfr_clear(t);
+    }
+    else if (opt.mode == Options::Mode::Z_Distributed_Chunk)
+    {
+        std::string pre_file = argv[2];
+        int chunk_id = std::stoi(argv[3]);
+        long n0 = std::stol(argv[4]);
+        long n1 = std::stol(argv[5]);
+        std::string out_file = argv[6];
+
+        PrecalcData pre;
+        if (!read_precalc_file(pre_file, pre))
+        {
+            std::cerr << "Failed to read precalc file\n";
+            return 1;
+        }
+
+        std::string sum_str;
+        if (!compute_rs_chunk_from_precalc(pre, n0, n1, sum_str))
+        {
+            std::cerr << "Failed chunk computation\n";
+            return 1;
+        }
+
+        if (!append_chunk_result(out_file, chunk_id, n0, n1, sum_str))
+        {
+            std::cerr << "Failed to append chunk result\n";
+            return 1;
+        }
+
+        std::cout << "Chunk " << chunk_id << " done: [" << n0 << "," << n1 << "]\n";
     }
     else
     {
