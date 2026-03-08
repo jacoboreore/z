@@ -440,8 +440,8 @@ int main(int argc, char **argv)
     {
         std::string pre_file = argv[2];
         int chunk_id = std::stoi(argv[3]);
-        long n0 = std::stol(argv[4]);
-        long n1 = std::stol(argv[5]);
+        std::int64_t n0 = std::stol(argv[4]);
+        std::int64_t n1 = std::stol(argv[5]);
         std::string out_file = argv[6];
 
         PrecalcData pre;

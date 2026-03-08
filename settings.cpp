@@ -306,6 +306,14 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
         c.header_walking = v;
     else if (ieq(k, "header_walking_for_plotting"))
         c.header_walking_for_plotting = v;
+
+    // Distributed valley scanner
+    else if (ieq(k, "dist_chunk_mode"))
+        c.dist_chunk_mode =std::stoi(v);
+
+    else if (ieq(k, "dist_rot_inner_block_size"))
+        c.dist_rot_inner_block_size = std::max(1, std::stoi(v));
+    
 }
 
 /**
@@ -493,6 +501,9 @@ void print_config(const Config &c)
     log_kv("header_refined", c.header_refined, D);
     log_kv("header_walking", c.header_walking, D);
     log_kv("header_walking_for_plotting", c.header_walking_for_plotting, D);
+
+    // --- Distributed valley scanner ---
+    log_kv("dist_chunk_mode", c.dist_chunk_mode, D);
 }
 
 /**

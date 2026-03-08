@@ -40,6 +40,9 @@ echo "10/10  AWS work: debugging"
 echo "10/10  Frontend (major addition)"
 echo "10/11–10/20  Frontend/AWS debugging"
 echo "10/21–10/31  Documentation and paper work"
+echo "2026"
+echo "03/07 Distributed valley scanner, threaded chunk and serial chunk"
+
 
 echo "-------------------------------------------"
 

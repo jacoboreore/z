@@ -100,6 +100,11 @@ struct Config
     std::string header_refined = "t,absZ,spacing";
     std::string header_walking = "t,absZ,N";
     std::string header_walking_for_plotting = "t,absZ,N,minima";
+
+    // Distributed valley scanner
+
+    int dist_chunk_mode = 0;
+    int dist_rot_inner_block_size = 8192;
 };
 
 // Initialize once

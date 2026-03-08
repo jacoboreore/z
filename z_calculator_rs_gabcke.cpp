@@ -36,15 +36,6 @@
 #include "utils.h"
 #include "z_calculator_rs_gabcke.h"
 
-/**
- * @brief Convert MPFR precision in bits to approximate decimal digits.
- * @param P MPFR precision in bits.
- * @return Approximate decimal digits.
- */
-static inline long dec_digits_from_bits(mpfr_prec_t P)
-{
-    return (long)std::ceil(P * 0.3010299956639811952137389L);
-}
 
 // -----------------------------------------------------------------------------
 // RS parameterization
@@ -504,9 +495,9 @@ static void psi_derivs_central(mpfr_t d2, mpfr_t d3, mpfr_t d6,
  * @param C        Cached constants.
  */
 void R_gabcke(mpfr_t R, const mpfr_t t, mpfr_prec_t P,
-                     bool useC1C2,
-                     DiffWeights *W_opt,
-                     const Constants &C)
+              bool useC1C2,
+              DiffWeights *W_opt,
+              const Constants &C)
 {
     mpfr_t a, p;
     mpfr_inits2(P, a, p, (mpfr_ptr)0);

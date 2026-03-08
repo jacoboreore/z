@@ -331,6 +331,16 @@ struct DiffWeights
     }
 };
 
+/**
+ * @brief Convert MPFR precision in bits to approximate decimal digits.
+ * @param P MPFR precision in bits.
+ * @return Approximate decimal digits.
+ */
+static inline long dec_digits_from_bits(mpfr_prec_t P)
+{
+    return (long)std::ceil(P * 0.3010299956639811952137389L);
+}
+
 void compute_Z_rs_gabcke(mpfr_t Z, const mpfr_t t);
 
 void compute_theta_spouge(mpfr_t theta, const mpfr_t t, mpfr_prec_t P, const Spouge &S, const Constants &C);
