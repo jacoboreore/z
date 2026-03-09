@@ -1,0 +1,36 @@
+############## Dynamo and SQS resources 
+
+STACK="jacob-z-dist"
+
+aws cloudformation delete-stack --stack-name $STACK
+
+aws cloudformation wait stack-delete-complete \
+  --stack-name $STACK
+
+aws cloudformation deploy \
+  --template-file sqs_dynamo_z_dist.dev.yaml \
+  --stack-name jacob-z-dist \
+  --capabilities CAPABILITY_IAM \
+  --region us-east-1 \
+  --no-fail-on-empty-changeset
+
+---------------------------------------------------------
+############## S3 EventBridge triger 
+
+aws s3api put-bucket-notification-configuration \
+  --bucket jacob-z \
+  --notification-configuration '{
+    "EventBridgeConfiguration": {
+      "EventBridgeEnabled": true
+    }
+  }'
+
+aws cloudformation deploy \
+  --template-file s3_eventBridge.yaml \
+  --stack-name jacob-z-eventbridge-trigger \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides \
+    ExistingBucketName=jacob-z \
+    JobProcessorLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_dist_prepare_chunks \
+  --region us-east-1 \
+  --no-fail-on-empty-changeset
