@@ -1,0 +1,37 @@
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "WriteArtifacts",
+			"Effect": "Allow",
+			"Action": [
+				"s3:PutObject",
+				"s3:AbortMultipartUpload",
+				"s3:ListMultipartUploadParts",
+				"s3:PutObjectTagging",
+				"s3:GetObject"
+			],
+			"Resource": [
+				"arn:aws:s3:::jacob-z/jobs/*",
+				"arn:aws:s3:::jacob-z/z-commands/*"
+			]
+		},
+		{
+			"Sid": "ListJobsPrefix",
+			"Effect": "Allow",
+			"Action": [
+				"s3:ListBucket",
+				"s3:ListBucketMultipartUploads"
+			],
+			"Resource": "arn:aws:s3:::jacob-z",
+			"Condition": {
+				"StringLike": {
+					"s3:prefix": [
+						"jobs/*",
+						"z-commands/*"
+					]
+				}
+			}
+		}
+	]
+}

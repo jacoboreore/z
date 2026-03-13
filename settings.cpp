@@ -309,11 +309,10 @@ static inline void set_kv(Config &c, const std::string &k, const std::string &v)
 
     // Distributed valley scanner
     else if (ieq(k, "dist_chunk_mode"))
-        c.dist_chunk_mode =std::stoi(v);
+        c.dist_chunk_mode = std::stoi(v);
 
     else if (ieq(k, "dist_rot_inner_block_size"))
         c.dist_rot_inner_block_size = std::max(1, std::stoi(v));
-    
 }
 
 /**
@@ -367,26 +366,6 @@ static void load_env(Config &cfg)
         if (auto *s = get(env_name)) \
             set_kv(cfg, key, s);     \
     } while (0)
-
-    OV("ZETA_MPFR_PREC", "mpfr_prec");
-    OV("ZETA_PREFILTER_ALPHA", "prefilter_alpha");
-    OV("ZETA_PREFILTER_TAU", "prefilter_tau");
-    OV("ZETA_NEWTON_TOL_ABS", "newton_tol_abs");
-    OV("ZETA_NEWTON_TOL_STEP", "newton_tol_step");
-    OV("ZETA_NEWTON_MAX_ITER", "newton_max_iter");
-    OV("ZETA_USE_THREADED_Z", "use_threaded_z");
-    OV("ZETA_USE_THREADED_NEWTON", "use_threaded_newton");
-    OV("ZETA_BALL_MID_THRESHOLD", "ball_mid_threshold");
-    OV("ZETA_H_MIN", "h_min");
-    OV("ZETA_H_FRAC_SPACING", "h_frac_spacing");
-    OV("ZETA_STEP_FRAC_SPACING", "step_frac_spacing");
-
-    OV("ZETA_MIN_THREADS", "min_threads");
-    OV("ZETA_MAX_THREADS", "max_threads");
-    OV("ZETA_RS_MIN_N_FOR_THREADS", "rs_min_N_for_threads");
-    OV("ZETA_RS_TAIL_C", "rs_tail_C");
-    OV("ZETA_RS_LOG_DEBUG", "rs_log_debug");
-    OV("ZETA_RS_LOG_DIGITS", "rs_log_digits");
 
 #undef OV
 }
@@ -504,6 +483,7 @@ void print_config(const Config &c)
 
     // --- Distributed valley scanner ---
     log_kv("dist_chunk_mode", c.dist_chunk_mode, D);
+    log_kv("dist_rot_inner_block_size", c.dist_rot_inner_block_size, D);
 }
 
 /**

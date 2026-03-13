@@ -20,9 +20,7 @@ aws cloudformation deploy \
 aws s3api put-bucket-notification-configuration \
   --bucket jacob-z \
   --notification-configuration '{
-    "EventBridgeConfiguration": {
-      "EventBridgeEnabled": true
-    }
+    "EventBridgeConfiguration": {}
   }'
 
 aws cloudformation deploy \
@@ -34,3 +32,29 @@ aws cloudformation deploy \
     JobProcessorLambdaArn=arn:aws:lambda:us-east-1:407875882825:function:z_dist_prepare_chunks \
   --region us-east-1 \
   --no-fail-on-empty-changeset
+
+# confim
+aws s3api get-bucket-notification-configuration \
+  --bucket jacob-z
+
+# lambda associated
+aws events describe-rule \
+  --name jacob-z-precalc-created-rule
+
+---------------------------------------------------------
+
+aws sqs receive-message --queue-url https://sqs.us-east-1.amazonaws.com/407875882825/valley-scanner-dev-work
+
+---------------------------------------------------------
+
+aws cloudformation deploy \
+  --stack-name valley-scanner-fixed-4 \
+  --template-file valley-scanner-fixed-4.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    AmiId=ami-xxxxxxxxxxxxxxxxx \
+    InstanceType=c7i.xlarge \
+    SubnetId=subnet-xxxxxxxx \
+    SecurityGroupId=sg-xxxxxxxx \
+    IamInstanceProfileName=your-instance-profile \
+    NamePrefix=valley-worker
