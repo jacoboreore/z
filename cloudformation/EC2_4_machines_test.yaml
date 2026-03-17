@@ -25,7 +25,7 @@ Parameters:
 
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
-    Default: ""
+    Default: "jacob-key-pair-all-EC2"
     Description: Optional EC2 key pair for SSH access
     ConstraintDescription: Must be an existing EC2 KeyPair name or empty
 

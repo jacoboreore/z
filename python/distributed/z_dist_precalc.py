@@ -27,7 +27,7 @@ THRESH_HUGE_MAX = Decimal("1e21")
 
 USE_SPOT = os.environ.get("USE_SPOT", "false").lower() == "true"
 
-T_MAX_HARD = Decimal("9999999999999999")
+T_MAX_HARD = Decimal("99999999999999999999")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
