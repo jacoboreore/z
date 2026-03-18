@@ -46,10 +46,20 @@ aws events describe-rule \
 ############## get mesages FOR TESTING
 aws sqs receive-message --queue-url https://sqs.us-east-1.amazonaws.com/407875882825/valley-scanner-dev-work
 
+# count messages
+
+aws sqs get-queue-attributes \
+  --queue-url https://sqs.us-east-1.amazonaws.com/407875882825/valley-scanner-dev-work \
+  --attribute-names ApproximateNumberOfMessages \
+                    ApproximateNumberOfMessagesNotVisible \
+                    ApproximateNumberOfMessagesDelayed
+
 ---------------------------------------------------------
 
 ############## creating boxes from image
-# Notes: IamInstanceProfileName is the IAM role attached to an EC2 instance.
+# Notes:  IamInstanceProfileName is the IAM role attached to an EC2 instance.
+#         c7i.8xlarge 32 CPU  
+#         c7i.24xlarge 96 CPU
 
 aws cloudformation deploy \
   --stack-name valley-scanner-box \
@@ -57,8 +67,14 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     AmiId=ami-0fabf13310cc5147f \
-    InstanceType=c7i.4xlarge \
+    InstanceType=c7i.24xlarge \
     SubnetId=subnet-0fbcb444dd2b8da11 \
     SecurityGroupId=sg-0a4c92ac491102653 \
     IamInstanceProfileName=z-batch-runner \
     NamePrefix=z-valley-worker
+
+
+
+# delete 
+aws cloudformation delete-stack \
+  --stack-name valley-scanner-box

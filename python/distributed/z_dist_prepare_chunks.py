@@ -17,8 +17,8 @@ CHUNKS_TABLE = os.environ["CHUNKS_TABLE"]
 ENABLE_SQS_DISPATCH = os.environ.get("ENABLE_SQS_DISPATCH", "false").lower() == "true"
 QUEUE_URL = os.environ.get("QUEUE_URL", "")
 
-DEFAULT_NUMBER_OF_CPUS = int(os.environ.get("DEFAULT_NUMBER_OF_CPUS", "8"))
-DEFAULT_NUMBER_OF_CHUNKS = int(os.environ.get("DEFAULT_NUMBER_OF_CHUNKS", "4"))
+DEFAULT_NUMBER_OF_CPUS = int(os.environ.get("DEFAULT_NUMBER_OF_CPUS", "96"))
+DEFAULT_NUMBER_OF_CHUNKS = int(os.environ.get("DEFAULT_NUMBER_OF_CHUNKS", "10"))
 
 # Logging
 logger = logging.getLogger()
