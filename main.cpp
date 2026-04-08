@@ -468,10 +468,9 @@ int main(int argc, char **argv)
     }
     else if (opt.mode == Options::Mode::Z_Distributed_Refine_Stage1)
     {
-
-        std::string job_id = argv[3];
-        std::string output_file = argv[4];
-
+        std::string output_file = argv[3];
+        std::string job_id = argv[4];
+        
         int result = main_stage1(
             t,
             job_id,
@@ -482,12 +481,9 @@ int main(int argc, char **argv)
         const std::string input_json = argv[2];
         const std::string output_json = argv[3];
 
-        std::string input_file = argv[3];
-        std::string output_file = argv[4];
-
         int result = main_stage2(
-            input_file,
-            output_file);
+            input_json,
+            output_json);
     }
     else
     {

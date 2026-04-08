@@ -324,7 +324,7 @@ bool parse_cli(int argc, char **argv, Options &out)
     {
         if (argc != 5)
         {
-            std::cerr << "[error] z_distributed_refine_stage1 requires  1 number (t),a string (job_id), an output file (json to python for this stage) \n";
+            std::cerr << "[error] z_distributed_refine_stage1 requires 1 number (t), a string (json path), and a string (job_id) \n";
             print_usage(argv[0]);
             return false;
         }
@@ -335,9 +335,9 @@ bool parse_cli(int argc, char **argv, Options &out)
     // ---------------------- z_distributed_refine_stage2 -----------------------------
     else if (mode == "z_distributed_refine_stage2")
     {
-        if (argc != 4)
+        if (argc != 5)
         {
-            std::cerr << "[error] z_distributed_refine_stage2 requires a string (input_json), a string (output_json) \n";
+            std::cerr << "[error] z_distributed_refine_stage2 requires a string (input_json), a string (output_json), and a string (job_id) \n";
             print_usage(argv[0]);
             return false;
         }

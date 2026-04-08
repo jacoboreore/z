@@ -129,7 +129,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
     json in;
     if (!load_json_file(input_json, in))
     {
-        std::cerr << "ERROR: could not load input json: " << input_json << "\n";
+        LOGMPF("ERROR: could not load input json: %s", input_json);
         return 2;
     }
 
@@ -141,7 +141,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
         const auto evals = in.at("evaluations");
         if (!evals.is_array() || evals.size() != 3)
         {
-            std::cerr << "ERROR: expected exactly 3 evaluations\n";
+            LOGMPF("ERROR: expected exactly 3 evaluations");
             return 3;
         }
 
@@ -210,7 +210,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
             !mpfr_from_string(z_center, center_z_str) ||
             !mpfr_from_string(z_right, right_z_str))
         {
-            std::cerr << "ERROR: invalid numeric field in input json\n";
+            LOGMPF("ERROR: invalid numeric field in input json");
             mpfr_clears(t_left, t_center, t_right,
                         z_left, z_center, z_right,
                         t_next, ztmp, dZ, delta, h_mp, t_req_left, t_req_right, t_mid,
@@ -242,7 +242,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
                 return 6;
             }
 
-            LOGMP_DEBUG("Stage2 decision: accept_root refine_id=%s", refine_id.c_str());
+            LOGMPF("Stage2 decision: accept_root refine_id=%s", refine_id.c_str());
 
             mpfr_clears(t_left, t_center, t_right,
                         z_left, z_center, z_right,
@@ -277,7 +277,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
                 return 7;
             }
 
-            LOGMP_DEBUG("Stage2 decision: bracket left-center refine_id=%s", refine_id.c_str());
+            LOGMPF("Stage2 decision: bracket left-center refine_id=%s", refine_id.c_str());
 
             mpfr_clears(t_left, t_center, t_right,
                         z_left, z_center, z_right,
@@ -309,7 +309,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
                 return 8;
             }
 
-            LOGMP_DEBUG("Stage2 decision: bracket center-right refine_id=%s", refine_id.c_str());
+            LOGMPF("Stage2 decision: bracket center-right refine_id=%s", refine_id.c_str());
 
             mpfr_clears(t_left, t_center, t_right,
                         z_left, z_center, z_right,
@@ -327,7 +327,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
         mpfr_sub(dZ, t_right, t_left, MPFR_RNDN);   // temp denominator
         if (mpfr_zero_p(dZ))
         {
-            std::cerr << "ERROR: t_right - t_left == 0\n";
+            LOGMPF("ERROR: t_right - t_left == 0");
             mpfr_clears(t_left, t_center, t_right,
                         z_left, z_center, z_right,
                         t_next, ztmp, dZ, delta, h_mp, t_req_left, t_req_right, t_mid,
@@ -359,7 +359,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
 
             if (!save_json_file(output_json, out))
             {
-                std::cerr << "ERROR: failed to write output json: " << output_json << "\n";
+                LOGMPF("ERROR: failed to write output json: %s", output_json);
                 mpfr_clears(t_left, t_center, t_right,
                             z_left, z_center, z_right,
                             t_next, ztmp, dZ, delta, h_mp, t_req_left, t_req_right, t_mid,
@@ -367,7 +367,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
                 return 10;
             }
 
-            LOGMP_DEBUG("Stage2 decision: derivative too small, wider scan refine_id=%s", refine_id.c_str());
+            LOGMPF("Stage2 decision: derivative too small, wider scan refine_id=%s", refine_id.c_str());
 
             mpfr_clears(t_left, t_center, t_right,
                         z_left, z_center, z_right,
@@ -421,12 +421,12 @@ int main_stage2(const std::string input_json, const std::string output_json)
             return 11;
         }
 
-        LOGMP_DEBUG("Stage2 decision: newton step refine_id=%s", refine_id.c_str());
-        LOGMP_DEBUG("refine_id=%s t_next=%s delta=%s dZ=%s",
-                  refine_id.c_str(),
-                  mpfr_to_string(t_next, CFG().rs_log_digits).c_str(),
-                  mpfr_to_string(delta, CFG().rs_log_digits).c_str(),
-                  mpfr_to_string(dZ, CFG().rs_log_digits).c_str());
+        LOGMPF("Stage2 decision: newton step refine_id=%s", refine_id.c_str());
+        LOGMPF("refine_id=%s t_next=%s delta=%s dZ=%s",
+               refine_id.c_str(),
+               mpfr_to_string(t_next, CFG().rs_log_digits).c_str(),
+               mpfr_to_string(delta, CFG().rs_log_digits).c_str(),
+               mpfr_to_string(dZ, CFG().rs_log_digits).c_str());
 
         mpfr_clears(t_left, t_center, t_right,
                     z_left, z_center, z_right,
@@ -436,7 +436,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
     }
     catch (const std::exception &e)
     {
-        std::cerr << "ERROR: exception in stage2 decision: " << e.what() << "\n";
+        LOGMPF("ERROR: exception in stage2 decision: ", e.what());
         return 12;
     }
 }

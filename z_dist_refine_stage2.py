@@ -4,6 +4,7 @@ import sys
 import time
 import subprocess
 import datetime
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
@@ -19,7 +20,7 @@ POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
 MAX_WAIT_SECONDS = int(os.environ.get("MAX_WAIT_SECONDS", "3600"))
 
 # Next-stage handoff
-STAGE2_JSON_DIR = os.environ.get("STAGE2_JSON_DIR", "/output")
+STAGE2_JSON_DIR = os.environ.get("STAGE2_JSON_DIR", "output")
 STAGE2_CPP_BIN = os.environ.get("STAGE2_CPP_BIN", "./bin/z")
 
 
@@ -28,6 +29,20 @@ refine_jobs_table = dynamodb.Table(REFINE_JOBS_TABLE)
 samples_table = dynamodb.Table(REFINE_SAMPLES_TABLE)
 z_jobs_table = dynamodb.Table(Z_JOBS_TABLE)
 
+def make_json_safe(obj):
+    if isinstance(obj, Decimal):
+        # Preserve integers as int when possible
+        if obj == obj.to_integral_value():
+            return int(obj)
+        return float(obj)
+
+    if isinstance(obj, dict):
+        return {k: make_json_safe(v) for k, v in obj.items()}
+
+    if isinstance(obj, list):
+        return [make_json_safe(v) for v in obj]
+
+    return obj
 
 def utc_now() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -257,8 +272,12 @@ def build_stage2_payload(refine_job: Dict[str, Any],
 def write_stage2_input_json(refine_id: str, payload: Dict[str, Any]) -> str:
     os.makedirs(STAGE2_JSON_DIR, exist_ok=True)
     path = os.path.join(STAGE2_JSON_DIR, f"{refine_id}_stage2_input.json")
+
+    safe_payload = make_json_safe(payload)
+
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+        json.dump(safe_payload, f, indent=2)
+
     return path
 
 
@@ -268,7 +287,7 @@ def stage2_output_path(refine_id: str) -> str:
 
 
 def run_stage2_cpp(input_json_path: str, output_json_path: str) -> int:
-    cmd = [STAGE2_CPP_BIN, "z_distributed_refine_stage2", input_json_path, output_json_path]
+    cmd = [STAGE2_CPP_BIN, "z_distributed_refine_stage2", input_json_path, output_json_path, "refinement_job"]
     log(f"Launching C++ stage2: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
 
