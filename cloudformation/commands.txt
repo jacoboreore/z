@@ -1,5 +1,11 @@
 ############## Dynamo and SQS resources 
 
+# delete stacks 
+aws cloudformation delete-stack \
+  --stack-name valley-scanner-box
+
+----------------------------------------------------------
+
 STACK="jacob-z-dist"
 
 aws cloudformation delete-stack --stack-name $STACK
@@ -15,6 +21,7 @@ aws cloudformation deploy \
   --no-fail-on-empty-changeset
 
 ---------------------------------------------------------
+
 ############## S3 EventBridge triger 
 
 aws s3api put-bucket-notification-configuration \
@@ -33,7 +40,7 @@ aws cloudformation deploy \
   --region us-east-1 \
   --no-fail-on-empty-changeset
 
-# confim
+# confirm
 aws s3api get-bucket-notification-configuration \
   --bucket jacob-z
 
@@ -58,6 +65,7 @@ aws sqs get-queue-attributes \
 
 ############## creating boxes from image
 # Notes:  IamInstanceProfileName is the IAM role attached to an EC2 instance.
+#         c7i.2xlarge 8 CPU
 #         c7i.8xlarge 32 CPU  
 #         c7i.24xlarge 96 CPU
 
@@ -67,14 +75,46 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     AmiId=ami-0fabf13310cc5147f \
-    InstanceType=c7i.24xlarge \
+    InstanceType=c7i.2xlarge \
     SubnetId=subnet-0fbcb444dd2b8da11 \
     SecurityGroupId=sg-0a4c92ac491102653 \
     IamInstanceProfileName=z-batch-runner \
     NamePrefix=z-valley-worker
 
+-------------------------------------------------------------
 
+# service quote (increase CPUs)
 
-# delete 
-aws cloudformation delete-stack \
-  --stack-name valley-scanner-box
+aws service-quotas get-service-quota \
+  --service-code ec2 \
+  --quota-code L-1216C47A \
+  --region us-east-1
+
+-------------------------------------------------------------
+
+# refinement resources
+
+# Dynamo
+
+aws cloudformation deploy \
+  --template-file refine_resources.yaml \
+  --stack-name valley-scanner-refine-dynamo-dev \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    ProjectName=valley-scanner-refine \
+    RefineJobsTableName=vs-refine-jobs \
+    RefineEvalsTableName=vs-refine-evals
+
+# SQS
+
+aws cloudformation deploy \
+  --template-file sqs_refine_resources.yaml \
+  --stack-name valley-scanner-refine \
+  --parameter-overrides \
+    ProjectName=valley-scanner-refine \
+    RefineEvalQueueName=vs-refine-eval-queue \
+    RefineEvalDLQName=vs-refine-eval-dlq \
+    VisibilityTimeoutSeconds=900 \
+    MessageRetentionSeconds=1209600 \
+    ReceiveMessageWaitTimeSeconds=20 \
+    MaxReceiveCount=3

@@ -35,6 +35,8 @@
 #include "file.h"
 #include "custom_y.h"
 #include "z_distributed_prechunk.h"
+#include "refine_stage1_request.h"
+#include "refine_stage2_decide.h"
 
 /**
  * @brief Program entry point for Valley Scanner CLI.
@@ -122,9 +124,7 @@ int main(int argc, char **argv)
     mpfr_init2(t, CFG().mpfr_prec);
 
     if (
-        opt.mode != Options::Mode::Refine_Progressive
-        && opt.mode != Options::Mode::Z_Distributed_Chunk
-    )
+        opt.mode != Options::Mode::Refine_Progressive && opt.mode != Options::Mode::Z_Distributed_Chunk && opt.mode != Options::Mode::Z_Distributed_Refine_Stage2)
     {
         if (mpfr_set_str(t, opt.t_str.c_str(), 10, MPFR_RNDN) != 0)
         {
@@ -465,6 +465,29 @@ int main(int argc, char **argv)
         }
 
         std::cout << "Chunk " << chunk_id << " done: [" << n0 << "," << n1 << "]\n";
+    }
+    else if (opt.mode == Options::Mode::Z_Distributed_Refine_Stage1)
+    {
+
+        std::string job_id = argv[3];
+        std::string output_file = argv[4];
+
+        int result = main_stage1(
+            t,
+            job_id,
+            output_file);
+    }
+    else if (opt.mode == Options::Mode::Z_Distributed_Refine_Stage2)
+    {
+        const std::string input_json = argv[2];
+        const std::string output_json = argv[3];
+
+        std::string input_file = argv[3];
+        std::string output_file = argv[4];
+
+        int result = main_stage2(
+            input_file,
+            output_file);
     }
     else
     {

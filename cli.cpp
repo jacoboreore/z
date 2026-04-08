@@ -96,10 +96,14 @@ void print_usage(const char *prog)
 
         << "  " << prog << " z_distributed_precalc <t> <job_id>\n"
         << "      Compute precalc for distributed z.\n\n"
-        
-        << "  " << prog << " z_distributed_chunk <file> <chunk_id> <start> <end> <job_id>\n"
-        << "      Compute precalc for distributed z.\n\n";
 
+        << "  " << prog << " z_distributed_chunk <file> <chunk_id> <start> <end> <job_id>\n"
+        << "      Compute precalc for distributed z.\n\n"
+        
+        << "  " << prog << " z_distributed_refine_stage1 <t> <job_id> <output>\n"
+        << "      Compute stage 1 for refinement z.\n\n";
+
+        
 }
 
 /**
@@ -123,7 +127,8 @@ bool parse_cli(int argc, char **argv, Options &out)
     std::cout << "Program arguments:" << std::endl;
 
     // Loop from index 0 to argc - 1
-    for (int i = 0; i < argc; i++) {
+    for (int i = 0; i < argc; i++)
+    {
         // argv[0] is typically the name of the executable itself
         std::cout << "Argument " << i << ": " << argv[i] << std::endl;
     }
@@ -313,6 +318,31 @@ bool parse_cli(int argc, char **argv, Options &out)
 
         out.mode = Options::Mode::Z_Distributed_Chunk;
         out.t_str = argv[2];
+    }
+    // ---------------------- z_distributed_refine_stage1 -----------------------------
+    else if (mode == "z_distributed_refine_stage1")
+    {
+        if (argc != 5)
+        {
+            std::cerr << "[error] z_distributed_refine_stage1 requires  1 number (t),a string (job_id), an output file (json to python for this stage) \n";
+            print_usage(argv[0]);
+            return false;
+        }
+
+        out.mode = Options::Mode::Z_Distributed_Refine_Stage1;
+        out.t_str = argv[2];
+    }
+    // ---------------------- z_distributed_refine_stage2 -----------------------------
+    else if (mode == "z_distributed_refine_stage2")
+    {
+        if (argc != 4)
+        {
+            std::cerr << "[error] z_distributed_refine_stage2 requires a string (input_json), a string (output_json) \n";
+            print_usage(argv[0]);
+            return false;
+        }
+
+        out.mode = Options::Mode::Z_Distributed_Refine_Stage2;
     }
     // ---------------------- UNKNOWN --------------------------
     else

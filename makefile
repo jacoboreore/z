@@ -33,11 +33,14 @@ SOURCES =                     \
   z_ball.cpp                  \
   refine_newton.cpp           \
   refine_newton_thread.cpp    \
+  refine_stage1_request.cpp   \
+  refine_stage2_decide.cpp    \
   z_distributed_prechunk.cpp  \
   settings.cpp                \
   cli.cpp                     \
   utils.cpp                   \
   main.cpp                      
+
 
 OBJECTS = $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 DEPS    = $(OBJECTS:.o=.d)
