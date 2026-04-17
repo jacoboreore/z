@@ -26,6 +26,10 @@ def utc_now() -> str:
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
+def make_eval_id(stage_name: str, label: str) -> str:
+    return f"{stage_name}#{label}"
+
+
 def load_json_file(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -89,12 +93,17 @@ def put_sample_items(data: Dict[str, Any]) -> None:
 
     with samples_table.batch_writer() as batch:
         for point in data["requested_points"]:
+            label = str(point["label"])
+            t_value = str(point["t"])
+            eval_id = make_eval_id(data["stage_name"], label)
+
             batch.put_item(
                 Item={
                     "refine_id": data["refine_id"],
-                    "eval_id": point["label"],
+                    "eval_id": eval_id,
+                    "label": label,
                     "stage_name": data["stage_name"],
-                    "t": str(point["t"]),
+                    "t": t_value,
                     "status": "PENDING",
                     "source": "refine_stage1_request",
                     "requested_at": now,
@@ -189,15 +198,18 @@ def main() -> int:
         print("[INFO] Sample items written to DynamoDB")
 
         for point in data["requested_points"]:
-            print(f"[INFO] Dispatching sample {point['label']} t={point['t']}")
+            label = str(point["label"])
+            eval_id = make_eval_id(data["stage_name"], label)
+
+            print(f"[INFO] Dispatching sample {label} t={point['t']}")
             dispatch_result = invoke_dispatch_lambda(
                 refine_id=data["refine_id"],
                 stage_name=data["stage_name"],
                 point=point,
             )
-            update_sample_dispatch_status(data["refine_id"], point["label"], dispatch_result)
+            update_sample_dispatch_status(data["refine_id"], eval_id, dispatch_result)
             print(
-                f"[INFO] Sample {point['label']} dispatch status="
+                f"[INFO] Sample {label} dispatch status="
                 f"{dispatch_result.get('status_code')} "
                 f"function_error={dispatch_result.get('function_error')}"
             )

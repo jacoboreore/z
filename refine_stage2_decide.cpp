@@ -37,7 +37,7 @@ using json = nlohmann::json;
 // -----------------------------------------------------------------------------
 // Hardcoded for now; parameterize later
 // -----------------------------------------------------------------------------
-static constexpr double STAGE2_TOL_ABS = 1e-12;
+static constexpr double STAGE2_TOL_ABS = 1e-8;
 static constexpr double DERIV_EPS = 1e-30;
 static constexpr double MAX_STEP_FACTOR = 0.7;
 
@@ -71,10 +71,12 @@ static bool save_json_file(const std::string &path, const json &j)
         out << j.dump(2) << "\n";
         return true;
     }
-    catch (...)
+    catch (const std::exception &e)
     {
+        LOGMPF("ERROR: exception in save_json_file: %s", e.what());
         return false;
     }
+        
 }
 
 static bool mpfr_from_string(mpfr_t x, const std::string &s)
@@ -404,9 +406,16 @@ int main_stage2(const std::string input_json, const std::string output_json)
             {"reason", "newton_step_from_stage2"},
             {"refine_id", refine_id},
             {"input", {{"t0", t0_str}}},
-            {"metadata", {{"previous_center_t", mpfr_to_string(t_center, CFG().rs_log_digits)}, {"previous_center_z", mpfr_to_string(z_center, CFG().rs_log_digits)}, {"derivative_est", mpfr_to_string(dZ, CFG().rs_log_digits)}, {"delta", mpfr_to_string(delta, CFG().rs_log_digits)}, {"spacing_est", mpfr_to_string(t_center, CFG().rs_log_digits)}, // optional placeholder
-                          {"h", mpfr_to_string(h_mp, CFG().rs_log_digits)},
-                          {"sample_count", 3}}},
+            {"metadata", {
+                    {"previous_center_t", mpfr_to_string(t_center, CFG().rs_log_digits)}, 
+                    {"previous_center_z", mpfr_to_string(z_center, CFG().rs_log_digits)}, 
+                    {"derivative_est", mpfr_to_string(dZ, CFG().rs_log_digits)}, 
+                    {"delta", mpfr_to_string(delta, CFG().rs_log_digits)}, 
+                    {"spacing_est", std::to_string(spacing)}, // optional placeholder
+                    {"h", mpfr_to_string(h_mp, CFG().rs_log_digits)},
+                    {"sample_count", 3}
+                }
+            },
             {"requested_points", json::array({make_point("left1", t_req_left),
                                               make_point("center", t_next),
                                               make_point("right1", t_req_right)})}};
@@ -422,11 +431,16 @@ int main_stage2(const std::string input_json, const std::string output_json)
         }
 
         LOGMPF("Stage2 decision: newton step refine_id=%s", refine_id.c_str());
+
+        const std::string t_next_s = mpfr_to_string(t_next, CFG().rs_log_digits);
+        const std::string delta_s  = mpfr_to_string(delta, CFG().rs_log_digits);
+        const std::string dz_s     = mpfr_to_string(dZ, CFG().rs_log_digits);
+
         LOGMPF("refine_id=%s t_next=%s delta=%s dZ=%s",
-               refine_id.c_str(),
-               mpfr_to_string(t_next, CFG().rs_log_digits).c_str(),
-               mpfr_to_string(delta, CFG().rs_log_digits).c_str(),
-               mpfr_to_string(dZ, CFG().rs_log_digits).c_str());
+            refine_id.c_str(),
+            t_next_s.c_str(),
+            delta_s.c_str(),
+            dz_s.c_str());
 
         mpfr_clears(t_left, t_center, t_right,
                     z_left, z_center, z_right,
@@ -436,7 +450,7 @@ int main_stage2(const std::string input_json, const std::string output_json)
     }
     catch (const std::exception &e)
     {
-        LOGMPF("ERROR: exception in stage2 decision: ", e.what());
+        LOGMPF("ERROR: exception in stage2 decision: %s", e.what());
         return 12;
     }
 }

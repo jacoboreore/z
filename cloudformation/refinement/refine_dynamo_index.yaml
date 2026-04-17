@@ -1,0 +1,9 @@
+GlobalSecondaryIndexes:
+  - IndexName: status-index
+    KeySchema:
+      - AttributeName: status
+        KeyType: HASH
+      - AttributeName: updated_at
+        KeyType: RANGE
+    Projection:
+      ProjectionType: ALL

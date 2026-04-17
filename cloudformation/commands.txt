@@ -61,6 +61,12 @@ aws sqs get-queue-attributes \
                     ApproximateNumberOfMessagesNotVisible \
                     ApproximateNumberOfMessagesDelayed
 
+aws sqs get-queue-attributes \
+  --queue-url https://sqs.us-east-1.amazonaws.com/407875882825/vs-refine-eval-queue \
+  --attribute-names ApproximateNumberOfMessages \
+                    ApproximateNumberOfMessagesNotVisible \
+                    ApproximateNumberOfMessagesDelayed
+
 ---------------------------------------------------------
 
 ############## creating boxes from image
@@ -92,7 +98,7 @@ aws service-quotas get-service-quota \
 
 -------------------------------------------------------------
 
-# refinement resources
+# refinement resources deploying
 
 # Dynamo
 
@@ -118,3 +124,15 @@ aws cloudformation deploy \
     MessageRetentionSeconds=1209600 \
     ReceiveMessageWaitTimeSeconds=20 \
     MaxReceiveCount=3
+
+-------------------------------------------------------------
+
+# Dynamo indexes
+
+aws dynamodb update-table \
+  --table-name valley-scanner-dev-jobs \
+  --attribute-definitions \
+      AttributeName=status,AttributeType=S \
+      AttributeName=updated_at,AttributeType=N \
+  --global-secondary-index-updates "file://gsi-update.json"
+

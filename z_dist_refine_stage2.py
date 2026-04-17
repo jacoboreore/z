@@ -188,13 +188,19 @@ def ensure_z_job_ids(refine_id: str, eval_rows: List[Dict[str, Any]]) -> Dict[st
     mapping: Dict[str, str] = {}
 
     for row in eval_rows:
+        if "label" not in row or not row["label"]:
+            raise RuntimeError(f"Eval row missing label: {row}")
+        if "eval_id" not in row or not row["eval_id"]:
+            raise RuntimeError(f"Eval row missing eval_id: {row}")
+
         eval_id = row["eval_id"]
+        label = row.get("label", "")
 
         if eval_failed(row):
             raise RuntimeError(f"Eval row already failed: {eval_id}")
 
         if not launch_successful(row):
-            raise RuntimeError(f"Eval row not launch-successful yet: {eval_id}")
+            raise RuntimeError(f"Eval row not launch-successful yet: eval_id={eval_id} label={label}")
 
         z_job_id = row.get("z_job_id")
         if not z_job_id:
@@ -229,11 +235,30 @@ def normalize_z_string(value: Any) -> str:
 def build_stage2_payload(refine_job: Dict[str, Any],
                          eval_rows: List[Dict[str, Any]],
                          z_jobs_by_eval: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    rows_by_label = {row["eval_id"]: row for row in eval_rows}
+    
+    for row in eval_rows:
+        if "label" not in row or not row["label"]:
+            raise RuntimeError(f"Eval row missing label: {row}")
+        if "eval_id" not in row or not row["eval_id"]:
+            raise RuntimeError(f"Eval row missing eval_id: {row}")
+
+    rows_by_label = {row["label"]: row for row in eval_rows}
+
+    required_labels = {"left1", "center", "right1"}
+    present_labels = set(rows_by_label.keys())
+    missing = required_labels - present_labels
+    if missing:
+        raise RuntimeError(f"Missing expected labels in eval_rows: {sorted(missing)}")
 
     def eval_entry(label: str) -> Dict[str, Any]:
         row = rows_by_label[label]
-        zjob = z_jobs_by_eval[label]
+        eval_id = row["eval_id"]
+
+        if eval_id not in z_jobs_by_eval:
+            raise RuntimeError(f"Missing downstream Z job for eval_id={eval_id} label={label}")
+
+        zjob = z_jobs_by_eval[eval_id]
+
         return {
             "label": label,
             "t": str(row.get("t", "")),
