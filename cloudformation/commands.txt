@@ -71,6 +71,7 @@ aws sqs get-queue-attributes \
 
 ############## creating boxes from image
 # Notes:  IamInstanceProfileName is the IAM role attached to an EC2 instance.
+#         c7i.large   2 CPU
 #         c7i.2xlarge 8 CPU
 #         c7i.8xlarge 32 CPU  
 #         c7i.24xlarge 96 CPU
@@ -81,7 +82,7 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     AmiId=ami-0fabf13310cc5147f \
-    InstanceType=c7i.2xlarge \
+    InstanceType=c7i.8xlarge \
     SubnetId=subnet-0fbcb444dd2b8da11 \
     SecurityGroupId=sg-0a4c92ac491102653 \
     IamInstanceProfileName=z-batch-runner \
@@ -133,6 +134,29 @@ aws dynamodb update-table \
   --table-name valley-scanner-dev-jobs \
   --attribute-definitions \
       AttributeName=status,AttributeType=S \
-      AttributeName=updated_at,AttributeType=N \
+      AttributeName=created_at,AttributeType=N \
   --global-secondary-index-updates "file://gsi-update.json"
+
+
+# test
+aws dynamodb query \
+  --table-name valley-scanner-dev-jobs \
+  --index-name status-index \
+  --key-condition-expression "#s = :s" \
+  --expression-attribute-names '{"#s":"status"}' \
+  --expression-attribute-values '{":s":{"S":"CHUNKS_CREATED"}}'
+
+# describe table
+aws dynamodb describe-table \
+  --table-name valley-scanner-dev-jobs \
+  --query "Table.GlobalSecondaryIndexes[].{IndexName:IndexName,KeySchema:KeySchema,IndexStatus:IndexStatus}" \
+  --output table
+
+----------------------------------------------------------------
+
+# images, current and not user
+
+ami-0fabf13310cc5147f   not used
+
+
 

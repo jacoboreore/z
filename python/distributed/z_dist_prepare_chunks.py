@@ -4,11 +4,10 @@ import math
 import datetime
 import logging
 import traceback
+import time
 from urllib.parse import unquote_plus
-
 import boto3
 from botocore.exceptions import ClientError
-
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 JOBS_TABLE = os.environ["JOBS_TABLE"]
@@ -23,6 +22,8 @@ DEFAULT_NUMBER_OF_CHUNKS = int(os.environ.get("DEFAULT_NUMBER_OF_CHUNKS", "10"))
 # Logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+for h in logger.handlers:
+    h.setLevel(logging.INFO)
 
 s3 = boto3.client("s3", region_name=AWS_REGION)
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
@@ -206,7 +207,7 @@ def put_job_if_new(
         job_id, bucket, key, number_of_cpus, number_of_chunks_requested, number_of_chunks_created
     )
 
-    now = datetime.datetime.utcnow().isoformat() + "Z"
+    now = int(time.time())
 
     item = {
         "job_id": job_id,
@@ -252,7 +253,7 @@ def put_chunks(
 ) -> None:
     logger.info("put_chunks: writing %s chunks for job_id=%s", len(ranges), job_id)
 
-    now = datetime.datetime.utcnow().isoformat() + "Z"
+    now = int(time.time())
 
     with chunks_table.batch_writer() as batch:
         for idx, row in enumerate(ranges):

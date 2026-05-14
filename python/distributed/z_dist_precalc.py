@@ -15,10 +15,10 @@ INSTANCE_PROFILE_NAME = os.environ["INSTANCE_PROFILE_NAME"]
 S3_BUCKET = os.environ["S3_BUCKET"]
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
-INSTANCE_TYPE_SMALL = os.environ.get("INSTANCE_TYPE_SMALL", "c7i.8xlarge")
-INSTANCE_TYPE_LARGE = os.environ.get("INSTANCE_TYPE_LARGE", "c7i.16xlarge")
-INSTANCE_TYPE_XLARGE = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.24xlarge")
-INSTANCE_TYPE_HUGE = os.environ.get("INSTANCE_TYPE_HUGE", "c7i.48xlarge")
+INSTANCE_TYPE_SMALL = os.environ.get("INSTANCE_TYPE_SMALL", "c7i.large")
+INSTANCE_TYPE_LARGE = os.environ.get("INSTANCE_TYPE_LARGE", "c7i.large")
+INSTANCE_TYPE_XLARGE = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.large")
+INSTANCE_TYPE_HUGE = os.environ.get("INSTANCE_TYPE_HUGE", "c7i.large")
 
 THRESH_SMALL_MAX = Decimal("1e8")
 THRESH_LARGE_MAX = Decimal("1e12")
@@ -31,6 +31,9 @@ T_MAX_HARD = Decimal("9999999999999999999999")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+for handler in logger.handlers:
+    handler.setLevel(logging.INFO)
 
 
 def load_user_data_from_s3(bucket: str, key: str, variables: dict) -> str:

@@ -6,7 +6,6 @@ import logging
 import tempfile
 import subprocess
 from decimal import Decimal, getcontext
-
 import boto3
 from botocore.exceptions import ClientError
 
@@ -37,11 +36,34 @@ RESULTS_PREFIX = os.environ.get("RESULTS_PREFIX", "z-dist-results")
 # -----------------------------------------------------------------------------
 # ROOT LOGGING
 # -----------------------------------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s"
+import logging
+import sys
+
+# Root logger
+root_log = logging.getLogger()
+root_log.setLevel(logging.INFO)
+
+# Remove existing handlers completely
+for h in root_log.handlers[:]:
+    root_log.removeHandler(h)
+
+# Create explicit console handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+
+formatter = logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
-root_log = logging.getLogger("valley-worker-root")
+
+console_handler.setFormatter(formatter)
+
+root_log.addHandler(console_handler)
+
+# Optional named logger
+logger = logging.getLogger("valley-scanner")
+logger.setLevel(logging.INFO)
+
+logger.info("Logging initialized correctly")
 
 # -----------------------------------------------------------------------------
 # AWS CLIENTS

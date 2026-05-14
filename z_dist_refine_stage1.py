@@ -3,6 +3,7 @@ import os
 import sys
 import uuid
 import datetime
+import time
 from decimal import Decimal
 from typing import Any, Dict, List
 
@@ -44,8 +45,17 @@ def validate_stage1_payload(data: Dict[str, Any]) -> None:
     if data["action"] != "queue_z_evaluations":
         raise ValueError(f"Unexpected action: {data['action']}")
 
-    if not isinstance(data["requested_points"], list) or len(data["requested_points"]) != 3:
-        raise ValueError("requested_points must be a list of exactly 3 points for stage 1")
+    if not isinstance(data["requested_points"], list) or len(data["requested_points"]) == 0:
+        raise ValueError("requested_points must be a non-empty list")
+
+    declared_sample_count = int(data.get("metadata", {}).get("sample_count", 0))
+    actual_sample_count = len(data["requested_points"])
+
+    if declared_sample_count and declared_sample_count != actual_sample_count:
+        raise ValueError(
+            f"metadata.sample_count={declared_sample_count} does not match "
+            f"requested_points length={actual_sample_count}"
+        )
 
     labels_seen = set()
     for point in data["requested_points"]:
@@ -66,7 +76,7 @@ def to_decimal_or_none(value: Any):
 
 
 def put_refine_job(data: Dict[str, Any]) -> None:
-    now = utc_now()
+    now = int(time.time())
 
     item = {
         "refine_id": data["refine_id"],
@@ -89,7 +99,7 @@ def put_refine_job(data: Dict[str, Any]) -> None:
 
 
 def put_sample_items(data: Dict[str, Any]) -> None:
-    now = utc_now()
+    now = int(time.time())
 
     with samples_table.batch_writer() as batch:
         for point in data["requested_points"]:
@@ -133,7 +143,8 @@ def invoke_dispatch_lambda(refine_id: str, stage_name: str, point: Dict[str, Any
 
 
 def update_sample_dispatch_status(refine_id: str, sample_id: str, dispatch_result: Dict[str, Any]) -> None:
-    now = utc_now()
+    now = int(time.time())
+
     samples_table.update_item(
         Key={"refine_id": refine_id, "eval_id": sample_id},
         UpdateExpression=(
@@ -153,7 +164,8 @@ def update_sample_dispatch_status(refine_id: str, sample_id: str, dispatch_resul
 
 
 def update_job_dispatched(refine_id: str) -> None:
-    now = utc_now()
+    now = int(time.time())
+
     jobs_table.update_item(
         Key={"refine_id": refine_id},
         UpdateExpression="SET #st = :st, updated_at = :ut",
@@ -166,7 +178,8 @@ def update_job_dispatched(refine_id: str) -> None:
 
 
 def update_job_error(refine_id: str, error_message: str) -> None:
-    now = utc_now()
+    now = int(time.time())
+    
     jobs_table.update_item(
         Key={"refine_id": refine_id},
         UpdateExpression="SET #st = :st, updated_at = :ut, error_message = :em",

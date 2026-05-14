@@ -75,6 +75,7 @@ AMI_IMAGE = os.environ.get("AMI_IMAGE", "ami-0fabf13310cc5147f")
 
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
 MAX_WAIT_SECONDS = int(os.environ.get("MAX_WAIT_SECONDS", "3600"))
+MAX_ITERATIONS = int(os.environ.get("MAX_ITERATIONS", "8"))
 
 REFINE_JSON_DIR = os.environ.get("REFINE_JSON_DIR", "output")
 STAGE2_CPP_BIN = os.environ.get("STAGE2_CPP_BIN", "./bin/z")
@@ -121,7 +122,36 @@ def banner(title: str) -> None:
     line = "=" * 78
     print(f"\n{line}\n[{utc_now()}] {title}\n{line}", flush=True)
 
+def print_best_z_panel(current_payload: Dict[str, Any], z_jobs_by_eval: Dict[str, Dict[str, Any]]) -> None:
+    best = None
 
+    for point in current_payload.get("requested_points", []):
+        label = str(point.get("label", ""))
+        eval_id = make_eval_id(current_payload["stage_name"], label)
+        zjob = z_jobs_by_eval.get(eval_id)
+
+        if not zjob:
+            continue
+
+        z_str = normalize_z_string(zjob.get("ztotal", ""))
+        t_str = str(point.get("t", ""))
+
+        try:
+            abs_z = abs(float(z_str))
+        except Exception:
+            continue
+
+        if best is None or abs_z < best[0]:
+            best = (abs_z, z_str, t_str, label)
+
+    if best:
+        print("\n++++++++++++++++ JACOB BEST ++++++++++++++++++++", flush=True)
+        print("\n" + "-" * 70, flush=True)
+        print(f"BEST Z SO FAR | abs_z={best[0]:.17g} | z={best[1]}", flush=True)
+        print(f"t={best[2]}", flush=True)
+        print(f"label={best[3]}", flush=True)
+        print("-" * 70 + "\n", flush=True)
+        
 # -----------------------------------------------------------------------------
 # JSON helpers
 # -----------------------------------------------------------------------------
@@ -191,7 +221,7 @@ def update_job_status(refine_id: str, status: str, extra: Optional[Dict[str, Any
     Update top-level status for the refinement job.
     """
     extra = extra or {}
-    now = utc_now()
+    now = int(time.time())
 
     update_expr = "SET #st = :st, updated_at = :ut"
     expr_names = {"#st": "status"}
@@ -221,7 +251,8 @@ def put_or_update_refine_job(initial_payload: Dict[str, Any]) -> None:
 
     This is called at loop start so a fresh run can resume or initialize the job.
     """
-    now = utc_now()
+    now = int(time.time())
+
     refine_id = initial_payload["refine_id"]
 
     item = {
@@ -256,7 +287,7 @@ def update_eval_row(refine_id: str, eval_id: str, extra: Dict[str, Any]) -> None
     """
     Patch one eval row in Dynamo.
     """
-    now = utc_now()
+    now = int(time.time())
 
     update_expr = "SET updated_at = :ut"
     expr_names = {}
@@ -286,7 +317,7 @@ def put_sample_items(refine_id: str, stage_name: str, requested_points: List[Dic
 
     eval_id is stage_name#label so labels remain readable and stage-local.
     """
-    now = utc_now()
+    now = int(time.time())
 
     with samples_table.batch_writer() as batch:
         for point in requested_points:
@@ -716,10 +747,24 @@ def refinement_loop(initial_json_path: str) -> int:
     iteration_no = 1
     while True:
         action = current_payload.get("action", "")
-        stage_name = current_payload.get("stage_name", f"stage_iter_{iteration_no}")
+        base_stage_name = current_payload.get("stage_name", f"stage_iter_{iteration_no}")
+        stage_name = f"{base_stage_name}_iter_{iteration_no:03d}"
+        current_payload["stage_name"] = stage_name
         requested_points = current_payload.get("requested_points", [])
 
         banner(f"Iteration {iteration_no} | stage_name={stage_name} | action={action}")
+        if iteration_no > MAX_ITERATIONS:
+            update_job_status(
+                refine_id,
+                "FAILED_TO_CONVERGE",
+                {
+                    "monitor_error": f"Reached MAX_ITERATIONS={MAX_ITERATIONS}",
+                    "last_stage_name": stage_name,
+                    "last_action": action,
+                },
+            )
+            err(f"FAILED_TO_CONVERGE: reached MAX_ITERATIONS={MAX_ITERATIONS}")
+            return 9
 
         if action != "queue_z_evaluations":
             # Terminal or unexpected action returned directly from C++.
@@ -755,6 +800,7 @@ def refinement_loop(initial_json_path: str) -> int:
         # 2) Wait for all requested downstream Z jobs to finish.
         update_job_status(refine_id, "WAITING_EVALS", {"current_stage_name": stage_name})
         eval_rows, z_jobs_by_eval = wait_for_stage_results(refine_id, stage_name, len(requested_points))
+        print_best_z_panel(current_payload, z_jobs_by_eval)
 
         # 3) Build next input JSON for C++.
         refine_job = get_refine_job(refine_id)
@@ -780,7 +826,25 @@ def refinement_loop(initial_json_path: str) -> int:
         )
 
         # 4) Run C++ decision engine.
+        if os.path.exists(output_json_path):
+            os.remove(output_json_path)
+
         rc = run_cpp_decision(input_json_path, output_json_path)
+
+        if not os.path.exists(output_json_path):
+            update_job_status(
+                refine_id,
+                "ERROR",
+                {
+                    "monitor_error": f"C++ returned rc={rc} but output file was not created",
+                    "missing_output_json": output_json_path,
+                    "failed_iteration": iteration_no,
+                    "failed_stage_name": stage_name,
+                },
+            )
+            err(f"C++ output JSON missing: {output_json_path}")
+            return 8
+
         if rc != 0:
             update_job_status(
                 refine_id,

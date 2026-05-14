@@ -2,8 +2,8 @@ import os
 import json
 import time
 import logging
-
 import boto3
+
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
@@ -18,11 +18,11 @@ ASSEMBLER_LAMBDA = os.environ.get("ASSEMBLER_LAMBDA", "z_dist_monitor_assembler2
 MAX_JOBS_PER_RUN = int(os.environ.get("MAX_JOBS_PER_RUN", "25"))
 MAX_ASYNC_INVOCATIONS_PER_RUN = int(os.environ.get("MAX_ASYNC_INVOCATIONS_PER_RUN", "10"))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s"
-)
-log = logging.getLogger("monitor-ready-jobs")
+log = logging.getLogger()
+log.setLevel(logging.INFO)
+
+for handler in log.handlers:
+    handler.setLevel(logging.INFO)
 
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 lambda_client = boto3.client("lambda", region_name=AWS_REGION)
@@ -211,7 +211,7 @@ def lambda_handler(event, context):
     log.info("Monitor ready jobs started")
     log.info("JOBS_TABLE=%s", JOBS_TABLE)
     log.info("CHUNKS_TABLE=%s", CHUNKS_TABLE)
-    log.info("STATUS_INDEX=%s", STATUS_INDEX)
+    log.info("status_index=%s", STATUS_INDEX)
     log.info("ASSEMBLER_LAMBDA=%s", ASSEMBLER_LAMBDA)
     log.info("MAX_JOBS_PER_RUN=%s", MAX_JOBS_PER_RUN)
 

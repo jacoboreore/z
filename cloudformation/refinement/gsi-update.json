@@ -8,7 +8,7 @@
                     "KeyType": "HASH"
                 },
                 {
-                    "AttributeName": "updated_at",
+                    "AttributeName": "created_at",
                     "KeyType": "RANGE"
                 }
             ],

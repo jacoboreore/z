@@ -23,11 +23,11 @@ FINAL_RESULT_FILENAME = os.environ.get("FINAL_RESULT_FILENAME", "final_result.js
 
 ASSEMBLING_STALE_SECONDS = int(os.environ.get("ASSEMBLING_STALE_SECONDS", "120"))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s"
-)
-log = logging.getLogger("assemble-single-job")
+log = logging.getLogger()
+log.setLevel(logging.INFO)
+
+for handler in log.handlers:
+    handler.setLevel(logging.INFO)
 
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 s3 = boto3.client("s3", region_name=AWS_REGION)
@@ -137,7 +137,7 @@ def try_claim_or_reclaim_job(job_id: str) -> bool:
       ASSEMBLY_QUEUED -> ASSEMBLING
       ASSEMBLING(stale) -> ASSEMBLING
     """
-    now = now_epoch()
+    now = int(time.time())
 
     # First try the normal claim from ASSEMBLY_QUEUED.
     for ready_status in ("ASSEMBLY_QUEUED", "CHUNKS_CREATED"):

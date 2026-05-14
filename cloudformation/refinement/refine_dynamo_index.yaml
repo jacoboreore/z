@@ -3,7 +3,7 @@ GlobalSecondaryIndexes:
     KeySchema:
       - AttributeName: status
         KeyType: HASH
-      - AttributeName: updated_at
+      - AttributeName: created_at
         KeyType: RANGE
     Projection:
       ProjectionType: ALL

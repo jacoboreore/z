@@ -79,7 +79,7 @@ def get_z_job(job_id: str) -> Optional[Dict[str, Any]]:
 
 def update_job_status(refine_id: str, status: str, extra: Optional[Dict[str, Any]] = None) -> None:
     extra = extra or {}
-    now = utc_now()
+    now = int(time.time())
 
     update_expr = "SET #st = :st, updated_at = :ut"
     expr_names = {"#st": "status"}
@@ -104,7 +104,7 @@ def update_job_status(refine_id: str, status: str, extra: Optional[Dict[str, Any
 
 
 def update_eval_row(refine_id: str, eval_id: str, extra: Dict[str, Any]) -> None:
-    now = utc_now()
+    now = now = int(time.time())
 
     update_expr = "SET updated_at = :ut"
     expr_names = {}
@@ -235,7 +235,7 @@ def normalize_z_string(value: Any) -> str:
 def build_stage2_payload(refine_job: Dict[str, Any],
                          eval_rows: List[Dict[str, Any]],
                          z_jobs_by_eval: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    
+
     for row in eval_rows:
         if "label" not in row or not row["label"]:
             raise RuntimeError(f"Eval row missing label: {row}")
@@ -244,11 +244,28 @@ def build_stage2_payload(refine_job: Dict[str, Any],
 
     rows_by_label = {row["label"]: row for row in eval_rows}
 
-    required_labels = {"left1", "center", "right1"}
-    present_labels = set(rows_by_label.keys())
-    missing = required_labels - present_labels
-    if missing:
-        raise RuntimeError(f"Missing expected labels in eval_rows: {sorted(missing)}")
+    sample_count = int(refine_job.get("sample_count", 0))
+    if sample_count <= 0:
+        sample_count = len(eval_rows)
+
+    # center is always mandatory
+    if "center" not in rows_by_label:
+        raise RuntimeError("Missing required label: center")
+
+    # support both 3-point and 5-point layouts
+    if {"left2", "left1", "center", "right1", "right2"}.issubset(rows_by_label.keys()):
+        ordered_labels = ["left2", "left1", "center", "right1", "right2"]
+    elif {"left1", "center", "right1"}.issubset(rows_by_label.keys()):
+        ordered_labels = ["left1", "center", "right1"]
+    else:
+        raise RuntimeError(
+            f"Unsupported label set for refinement payload: {sorted(rows_by_label.keys())}"
+        )
+
+    if len(ordered_labels) != sample_count:
+        raise RuntimeError(
+            f"Refine job sample_count={sample_count} but resolved labels={ordered_labels}"
+        )
 
     def eval_entry(label: str) -> Dict[str, Any]:
         row = rows_by_label[label]
@@ -283,14 +300,10 @@ def build_stage2_payload(refine_job: Dict[str, Any],
         "metadata": {
             "h": refine_job.get("h", ""),
             "spacing_est": refine_job.get("spacing_est", ""),
-            "sample_count": refine_job.get("sample_count", 0),
+            "sample_count": sample_count,
             "generated_at": utc_now()
         },
-        "evaluations": [
-            eval_entry("left1"),
-            eval_entry("center"),
-            eval_entry("right1")
-        ]
+        "evaluations": [eval_entry(label) for label in ordered_labels]
     }
 
 
@@ -352,9 +365,12 @@ def main() -> int:
         eval_rows = get_eval_rows(refine_id)
         log(f"Fetched {len(eval_rows)} eval rows for refine_id={refine_id}")
 
-        # 3 point confirmation, TODO 5 points
-        if len(eval_rows) < 3:
-            warn(f"Expected 3 eval rows, got {len(eval_rows)}. Waiting...")
+        expected_samples = int(refine_job.get("sample_count", 0) or 0)
+        if expected_samples <= 0:
+            expected_samples = 3
+
+        if len(eval_rows) < expected_samples:
+            warn(f"Expected {expected_samples} eval rows, got {len(eval_rows)}. Waiting...")
             time.sleep(POLL_SECONDS)
             continue
 
