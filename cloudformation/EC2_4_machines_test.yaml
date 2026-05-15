@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Valley Scanner fixed fleet - 4 EC2 worker boxes
+Description: Valley Scanner fixed fleet - 5 EC2 worker boxes
 
 Parameters:
   AmiId:
@@ -8,8 +8,8 @@ Parameters:
 
   InstanceType:
     Type: String
-    Default: c7i.xlarge
-    Description: EC2 instance type for all 4 workers (for example c6i.xlarge, c7i.xlarge)
+    Default: c7i.16xlarge
+    Description: EC2 instance type for all 5 workers
 
   SubnetId:
     Type: AWS::EC2::Subnet::Id
@@ -46,7 +46,7 @@ Conditions:
 Resources:
   Worker1:
     Type: AWS::EC2::Instance
-    Properties:
+    Properties: &WorkerProps
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref IamInstanceProfileName
@@ -71,19 +71,7 @@ Resources:
   Worker2:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref AmiId
-      InstanceType: !Ref InstanceType
-      IamInstanceProfile: !Ref IamInstanceProfileName
-      SubnetId: !Ref SubnetId
-      SecurityGroupIds:
-        - !Ref SecurityGroupId
-      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
-      BlockDeviceMappings:
-        - DeviceName: /dev/xvda
-          Ebs:
-            VolumeSize: !Ref RootVolumeSize
-            VolumeType: gp3
-            DeleteOnTermination: true
+      <<: *WorkerProps
       Tags:
         - Key: Name
           Value: !Sub "${NamePrefix}-02"
@@ -95,19 +83,7 @@ Resources:
   Worker3:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref AmiId
-      InstanceType: !Ref InstanceType
-      IamInstanceProfile: !Ref IamInstanceProfileName
-      SubnetId: !Ref SubnetId
-      SecurityGroupIds:
-        - !Ref SecurityGroupId
-      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
-      BlockDeviceMappings:
-        - DeviceName: /dev/xvda
-          Ebs:
-            VolumeSize: !Ref RootVolumeSize
-            VolumeType: gp3
-            DeleteOnTermination: true
+      <<: *WorkerProps
       Tags:
         - Key: Name
           Value: !Sub "${NamePrefix}-03"
@@ -119,22 +95,22 @@ Resources:
   Worker4:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref AmiId
-      InstanceType: !Ref InstanceType
-      IamInstanceProfile: !Ref IamInstanceProfileName
-      SubnetId: !Ref SubnetId
-      SecurityGroupIds:
-        - !Ref SecurityGroupId
-      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
-      BlockDeviceMappings:
-        - DeviceName: /dev/xvda
-          Ebs:
-            VolumeSize: !Ref RootVolumeSize
-            VolumeType: gp3
-            DeleteOnTermination: true
+      <<: *WorkerProps
       Tags:
         - Key: Name
           Value: !Sub "${NamePrefix}-04"
+        - Key: Project
+          Value: valley-scanner
+        - Key: Role
+          Value: worker
+
+  Worker5:
+    Type: AWS::EC2::Instance
+    Properties:
+      <<: *WorkerProps
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-05"
         - Key: Project
           Value: valley-scanner
         - Key: Role
@@ -149,6 +125,8 @@ Outputs:
     Value: !Ref Worker3
   Worker4Id:
     Value: !Ref Worker4
+  Worker5Id:
+    Value: !Ref Worker5
 
   Worker1PrivateIp:
     Value: !GetAtt Worker1.PrivateIp
@@ -158,3 +136,5 @@ Outputs:
     Value: !GetAtt Worker3.PrivateIp
   Worker4PrivateIp:
     Value: !GetAtt Worker4.PrivateIp
+  Worker5PrivateIp:
+    Value: !GetAtt Worker5.PrivateIp

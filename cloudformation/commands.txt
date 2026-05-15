@@ -81,8 +81,8 @@ aws cloudformation deploy \
   --template-file EC2_4_machines_test.yaml \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    AmiId=ami-0fabf13310cc5147f \
-    InstanceType=c7i.8xlarge \
+    AmiId=ami-0dfe9aa3d33b19244 \
+    InstanceType=c7i.24xlarge  \
     SubnetId=subnet-0fbcb444dd2b8da11 \
     SecurityGroupId=sg-0a4c92ac491102653 \
     IamInstanceProfileName=z-batch-runner \
@@ -157,6 +157,6 @@ aws dynamodb describe-table \
 # images, current and not user
 
 ami-0fabf13310cc5147f   not used
-
+ami-0dfe9aa3d33b19244   current
 
 

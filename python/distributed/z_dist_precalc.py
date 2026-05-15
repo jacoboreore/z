@@ -15,10 +15,10 @@ INSTANCE_PROFILE_NAME = os.environ["INSTANCE_PROFILE_NAME"]
 S3_BUCKET = os.environ["S3_BUCKET"]
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
-INSTANCE_TYPE_SMALL = os.environ.get("INSTANCE_TYPE_SMALL", "c7i.large")
-INSTANCE_TYPE_LARGE = os.environ.get("INSTANCE_TYPE_LARGE", "c7i.large")
-INSTANCE_TYPE_XLARGE = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.large")
-INSTANCE_TYPE_HUGE = os.environ.get("INSTANCE_TYPE_HUGE", "c7i.large")
+INSTANCE_TYPE_SMALL = os.environ.get("INSTANCE_TYPE_SMALL", "c7i.2xlarge")
+INSTANCE_TYPE_LARGE = os.environ.get("INSTANCE_TYPE_LARGE", "c7i.2xlarge")
+INSTANCE_TYPE_XLARGE = os.environ.get("INSTANCE_TYPE_XLARGE", "c7i.2xlarge")
+INSTANCE_TYPE_HUGE = os.environ.get("INSTANCE_TYPE_HUGE", "c7i.2xlarge")
 
 THRESH_SMALL_MAX = Decimal("1e8")
 THRESH_LARGE_MAX = Decimal("1e12")
@@ -27,7 +27,7 @@ THRESH_HUGE_MAX = Decimal("1e21")
 
 USE_SPOT = os.environ.get("USE_SPOT", "false").lower() == "true"
 
-T_MAX_HARD = Decimal("9999999999999999999999")
+T_MAX_HARD = Decimal("9999999999999999999999999")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

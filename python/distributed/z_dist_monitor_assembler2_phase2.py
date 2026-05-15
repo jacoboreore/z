@@ -21,7 +21,7 @@ PRECALC_PREFIX = os.environ.get("PRECALC_PREFIX", "jobs")
 CHUNK_RESULTS_PREFIX = os.environ.get("CHUNK_RESULTS_PREFIX", "z-dist-results")
 FINAL_RESULT_FILENAME = os.environ.get("FINAL_RESULT_FILENAME", "final_result.json")
 
-ASSEMBLING_STALE_SECONDS = int(os.environ.get("ASSEMBLING_STALE_SECONDS", "120"))
+ASSEMBLING_STALE_SECONDS = int(os.environ.get("ASSEMBLING_STALE_SECONDS", "3600"))
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -258,11 +258,19 @@ def assemble_job(job_item: dict, chunk_items: list[dict]) -> dict:
     chunk_details = []
     total = Decimal(0)
 
+    log.info("Expected chunks=%s done=%s failed=%s total=%s",
+         expected_chunks, len(done_chunks), len(failed_chunks), len(chunk_items))
+
+    log.info("Reading precalc: s3://%s/%s", RESULTS_BUCKET, precalc_key)
+
     for chunk in ordered_chunks:
         chunk_id = str(chunk["chunk_id"])
         chunk_index = int(chunk["chunk_index"])
         key = build_chunk_result_key(job_id, chunk_id)
 
+        log.info("Reading chunk_index=%s chunk_id=%s key=s3://%s/%s",
+             chunk_index, chunk_id, RESULTS_BUCKET, key)
+        
         content = read_s3_text(RESULTS_BUCKET, key)
         rows = parse_chunk_results(content)
 
@@ -316,50 +324,61 @@ def assemble_job(job_item: dict, chunk_items: list[dict]) -> dict:
 
 def lambda_handler(event, context):
     job_id = str(event["job_id"])
-    log.info("Assembler started for job_id=%s", job_id)
+    log.info("===== ASSEMBLER START job_id=%s =====", job_id)
+    log.info("event=%s", json.dumps(event))
+    log.info("RESULTS_BUCKET=%s PRECALC_PREFIX=%s CHUNK_RESULTS_PREFIX=%s",
+             RESULTS_BUCKET, PRECALC_PREFIX, CHUNK_RESULTS_PREFIX)
 
-    if not try_claim_or_reclaim_job(job_id):
-        log.info("Could not claim job_id=%s", job_id)
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "job_id": job_id,
-                "action": "not_claimed"
-            })
-        }
+    try:
+        if not try_claim_or_reclaim_job(job_id):
+            log.info("Could not claim job_id=%s", job_id)
+            return {"statusCode": 200, "body": json.dumps({"job_id": job_id, "action": "not_claimed"})}
 
-    job_item = get_job(job_id)
-    if not job_item:
-        raise RuntimeError(f"Job not found after claim job_id={job_id}")
+        job_item = get_job(job_id)
+        log.info("job_item=%s", json.dumps(job_item, default=str))
 
-    chunk_items = query_chunks_for_job(job_id)
-    final_payload = assemble_job(job_item, chunk_items)
-    final_key = build_final_result_key(job_id)
+        if not job_item:
+            raise RuntimeError(f"Job not found after claim job_id={job_id}")
 
-    write_s3_json(RESULTS_BUCKET, final_key, final_payload)
+        chunk_items = query_chunks_for_job(job_id)
+        log.info("chunks_found=%s", len(chunk_items))
+        log.info("chunk_statuses=%s", json.dumps(
+            {s: sum(1 for c in chunk_items if c.get("status") == s)
+             for s in set(c.get("status", "MISSING") for c in chunk_items)}
+        ))
 
-    update_job_status(
-        job_id,
-        "DONE",
-        {
+        final_payload = assemble_job(job_item, chunk_items)
+        final_key = build_final_result_key(job_id)
+
+        log.info("Writing final result to s3://%s/%s", RESULTS_BUCKET, final_key)
+        write_s3_json(RESULTS_BUCKET, final_key, final_payload)
+
+        update_job_status(job_id, "DONE", {
             "chunks_done": final_payload["chunks_done"],
             "sum_chunks": final_payload["sum_chunks"],
             "zmain": final_payload["zmain"],
             "gabcke": final_payload["gabcke"],
             "ztotal": final_payload["ztotal"],
             "final_result_s3_key": final_key,
-            "assembled_at": final_payload["assembled_at"]
-        }
-    )
+            "assembled_at": final_payload["assembled_at"],
+            "assembler_error": "",
+        })
 
-    log.info("Assembly finished job_id=%s final_key=%s", job_id, final_key)
-
-    return {
-        "statusCode": 200,
-        "body": json.dumps({
+        log.info("===== ASSEMBLER DONE job_id=%s ztotal=%s =====", job_id, final_payload["ztotal"])
+        return {"statusCode": 200, "body": json.dumps({
             "job_id": job_id,
             "action": "assembled",
             "final_result_s3_key": final_key,
             "ztotal": final_payload["ztotal"]
-        })
-    }
+        })}
+
+    except Exception as e:
+        log.exception("===== ASSEMBLER FAILED job_id=%s error=%s =====", job_id, e)
+        try:
+            update_job_status(job_id, "ASSEMBLY_FAILED", {
+                "assembler_error": str(e)[:1000],
+                "assembler_failed_at": now_epoch(),
+            })
+        except Exception as update_err:
+            log.exception("Could not mark ASSEMBLY_FAILED job_id=%s error=%s", job_id, update_err)
+        raise

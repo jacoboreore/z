@@ -186,6 +186,7 @@ def process_job(job_item: dict) -> dict:
         }
 
     # All chunks complete. Let the single-job assembler take over.
+    log.info("--> Invoking assembler job_id=%s expected_chunks=%s", job_id, expected_chunks)
     resp = invoke_assembler_async(job_id)
 
     update_job_status(
