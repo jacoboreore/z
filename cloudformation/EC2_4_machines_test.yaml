@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Valley Scanner fixed fleet - 5 EC2 worker boxes
+Description: Valley Scanner fixed fleet - 8 EC2 worker boxes
 
 Parameters:
   AmiId:
@@ -8,8 +8,8 @@ Parameters:
 
   InstanceType:
     Type: String
-    Default: c7i.16xlarge
-    Description: EC2 instance type for all 5 workers
+    Default: c7i.xlarge
+    Description: EC2 instance type for all 8 workers (for example c6i.xlarge, c7i.xlarge)
 
   SubnetId:
     Type: AWS::EC2::Subnet::Id
@@ -46,7 +46,7 @@ Conditions:
 Resources:
   Worker1:
     Type: AWS::EC2::Instance
-    Properties: &WorkerProps
+    Properties:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref IamInstanceProfileName
@@ -71,7 +71,19 @@ Resources:
   Worker2:
     Type: AWS::EC2::Instance
     Properties:
-      <<: *WorkerProps
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref IamInstanceProfileName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${NamePrefix}-02"
@@ -83,7 +95,19 @@ Resources:
   Worker3:
     Type: AWS::EC2::Instance
     Properties:
-      <<: *WorkerProps
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref IamInstanceProfileName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${NamePrefix}-03"
@@ -95,7 +119,19 @@ Resources:
   Worker4:
     Type: AWS::EC2::Instance
     Properties:
-      <<: *WorkerProps
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref IamInstanceProfileName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${NamePrefix}-04"
@@ -107,10 +143,94 @@ Resources:
   Worker5:
     Type: AWS::EC2::Instance
     Properties:
-      <<: *WorkerProps
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref IamInstanceProfileName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${NamePrefix}-05"
+        - Key: Project
+          Value: valley-scanner
+        - Key: Role
+          Value: worker
+
+  Worker6:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref IamInstanceProfileName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-06"
+        - Key: Project
+          Value: valley-scanner
+        - Key: Role
+          Value: worker
+
+  Worker7:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref IamInstanceProfileName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-07"
+        - Key: Project
+          Value: valley-scanner
+        - Key: Role
+          Value: worker
+
+  Worker8:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref IamInstanceProfileName
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-08"
         - Key: Project
           Value: valley-scanner
         - Key: Role
@@ -127,6 +247,12 @@ Outputs:
     Value: !Ref Worker4
   Worker5Id:
     Value: !Ref Worker5
+  Worker6Id:
+    Value: !Ref Worker6
+  Worker7Id:
+    Value: !Ref Worker7
+  Worker8Id:
+    Value: !Ref Worker8
 
   Worker1PrivateIp:
     Value: !GetAtt Worker1.PrivateIp
@@ -138,3 +264,9 @@ Outputs:
     Value: !GetAtt Worker4.PrivateIp
   Worker5PrivateIp:
     Value: !GetAtt Worker5.PrivateIp
+  Worker6PrivateIp:
+    Value: !GetAtt Worker6.PrivateIp
+  Worker7PrivateIp:
+    Value: !GetAtt Worker7.PrivateIp
+  Worker8PrivateIp:
+    Value: !GetAtt Worker8.PrivateIp

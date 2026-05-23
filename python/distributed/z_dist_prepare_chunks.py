@@ -17,7 +17,7 @@ ENABLE_SQS_DISPATCH = os.environ.get("ENABLE_SQS_DISPATCH", "false").lower() == 
 QUEUE_URL = os.environ.get("QUEUE_URL", "")
 
 DEFAULT_NUMBER_OF_CPUS = int(os.environ.get("DEFAULT_NUMBER_OF_CPUS", "96"))
-DEFAULT_NUMBER_OF_CHUNKS = int(os.environ.get("DEFAULT_NUMBER_OF_CHUNKS", "60"))
+DEFAULT_NUMBER_OF_CHUNKS = int(os.environ.get("DEFAULT_NUMBER_OF_CHUNKS", "100"))
 
 # Logging
 logger = logging.getLogger()
