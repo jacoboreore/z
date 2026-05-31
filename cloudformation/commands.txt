@@ -74,6 +74,7 @@ aws sqs get-queue-attributes \
 #         c7i.large   2 CPU
 #         c7i.2xlarge 8 CPU
 #         c7i.8xlarge 32 CPU  
+#         c7i.16xlarge 64 CPU
 #         c7i.24xlarge 96 CPU
 
 aws cloudformation deploy \
@@ -82,7 +83,7 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     AmiId=ami-0dfe9aa3d33b19244 \
-    InstanceType=c7i.24xlarge  \
+    InstanceType=c7i.16xlarge  \
     SubnetId=subnet-0fbcb444dd2b8da11 \
     SecurityGroupId=sg-0a4c92ac491102653 \
     IamInstanceProfileName=z-batch-runner \
@@ -151,6 +152,25 @@ aws dynamodb describe-table \
   --table-name valley-scanner-dev-jobs \
   --query "Table.GlobalSecondaryIndexes[].{IndexName:IndexName,KeySchema:KeySchema,IndexStatus:IndexStatus}" \
   --output table
+
+----------------------------------------------------------------
+# email resourses
+
+aws cloudformation deploy \
+    --template-file email_resources.yaml \
+    --stack-name z-mail-stack \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --parameter-overrides \
+        AlertEmail=jacoboreore@gmail.com \
+        InvokerLambdaRoleArn=arn:aws:iam::407875882825:role/z-batch-runner
+
+aws lambda invoke \
+  --function-name z_mail \
+  --payload '{"test":"email"}' \
+  response.json
+
+aws cloudformation delete-stack \
+    --stack-name z-mail-stack
 
 ----------------------------------------------------------------
 

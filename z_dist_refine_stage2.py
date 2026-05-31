@@ -23,7 +23,6 @@ MAX_WAIT_SECONDS = int(os.environ.get("MAX_WAIT_SECONDS", "3600"))
 STAGE2_JSON_DIR = os.environ.get("STAGE2_JSON_DIR", "output")
 STAGE2_CPP_BIN = os.environ.get("STAGE2_CPP_BIN", "./bin/z")
 
-
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 refine_jobs_table = dynamodb.Table(REFINE_JOBS_TABLE)
 samples_table = dynamodb.Table(REFINE_SAMPLES_TABLE)

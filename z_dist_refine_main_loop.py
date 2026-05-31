@@ -71,7 +71,7 @@ REFINE_SAMPLES_TABLE = os.environ.get("REFINE_SAMPLES_TABLE", "vs-refine-evals")
 Z_JOBS_TABLE = os.environ.get("Z_JOBS_TABLE", "valley-scanner-dev-jobs")
 
 DISPATCH_LAMBDA_NAME = os.environ.get("DISPATCH_LAMBDA_NAME", "z_dist_precalc")
-AMI_IMAGE = os.environ.get("AMI_IMAGE", "ami-0fabf13310cc5147f")
+AMI_IMAGE = os.environ.get("AMI_IMAGE", "ami-0dfe9aa3d33b19244")
 
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
 MAX_WAIT_SECONDS = int(os.environ.get("MAX_WAIT_SECONDS", "3600"))

@@ -65,7 +65,7 @@ struct Config
     // logs
     bool rs_log_debug = true;
     bool rs_main_log = true;
-    int rs_log_digits = 24;
+    int rs_log_digits = 100;
 
     int theta_stirling_terms = 8;
 
