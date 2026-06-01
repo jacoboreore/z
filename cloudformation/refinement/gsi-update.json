@@ -1,0 +1,20 @@
+[
+    {
+        "Create": {
+            "IndexName": "status-index",
+            "KeySchema": [
+                {
+                    "AttributeName": "status",
+                    "KeyType": "HASH"
+                },
+                {
+                    "AttributeName": "created_at",
+                    "KeyType": "RANGE"
+                }
+            ],
+            "Projection": {
+                "ProjectionType": "ALL"
+            }
+        }
+    }
+]
