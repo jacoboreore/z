@@ -4,6 +4,8 @@
 
 **Contact:** jacoboreore@gmail.com
 
+**Updated:** 2026/Jun/02
+
 
 ---
 
@@ -40,12 +42,6 @@ In short: **the terrain itself reveals the zeros.**
 * Experimental validation at multiple $t$ scales (up to $t \approx 2\times10^{15}$).
 * high-t evaluations beyond $t = 10^{20}$ showing numerical stability and precision.
 * Complete datasets and Python tools for reproducibility.
-
-### 📄 Academic Paper
-
-The companion paper describes the statistical analysis, comparisons with the Riemann–von Mangoldt prediction, and the datasets used to validate the approach.
-
-> 📘 The paper and datasets together show that a continuous, unaligned scanning process can recover the full zero structure of $\zeta(s)$.
 
 ---
 
@@ -226,4 +222,4 @@ If you reference the datasets or visualizations, please cite:
 ---
 
 *“Walk the mountains, rest at the valleys. All is revealed with symmetry.”*
-— *Valley Scanner Project, 2025*
+— *Valley Scanner Project, 2026*
