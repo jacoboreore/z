@@ -1,94 +1,112 @@
-Valley Scanner © 2025 Jacob Orellana. All rights reserved.
+# Valley Scanner Research License v1.0
 
-**Updated:** 2026/Jun/02
+Copyright © 2026 Jacob Orellana
 
-## 1. Scope
+## 1. Purpose
 
-This repository includes multiple components governed by distinct usage terms:
+The Valley Scanner Engine ("Software") is made publicly available to support:
 
-| Component                                                                        | License                              | Description                                                                                                                                                                  |
-| -------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Core computation binaries** (included in Docker image `jacobore/jor_z:native`) | **Proprietary**                      | Publicly executable but not open source. Redistribution, reverse engineering, or reuse of the compiled code is prohibited without explicit written permission of the author. |
-| **Datasets, figures, and numerical results**                                     | **CC BY 4.0 (Attribution Required)** | Licensed under Creative Commons Attribution 4.0 International License with explicit citation requirement (see Section 3).                                                    |
-| **Python visualization scripts and utilities**                                   | **MIT License**                      | Openly available for study, reuse, and reproducible research.                                                                                                                |
-| **Scientific paper (docs/z-paper.pdf)**                                            | **Copyright © 2025 Jacob Orellana**  | Included for reference and citation only. May not be altered or redistributed without permission.                                                                            |
+* Scientific research
+* Academic verification
+* Reproducibility of published results
+* Personal study and educational use
 
----
-
-## 2. Proprietary Notice (Core Binaries)
-
-The compiled core included in the Docker image represents the intellectual property of the author.
-
-```
-Valley Scanner © 2025 Jacob Orellana  
-All rights reserved.  
-
-Redistribution and use in source or binary forms, with or without modification,  
-are permitted only with explicit written permission from the author.  
-
-The software is provided “as is,” without warranty of any kind, express or implied,  
-including but not limited to the warranties of merchantability or fitness for a particular purpose.
-```
-
-Any unauthorized reverse engineering, decompilation, or commercial reuse of the binaries is strictly prohibited.
+This license is intended to allow inspection, execution, and validation of the Software while preserving ownership of the original work and preventing unauthorized commercial exploitation.
 
 ---
 
-## 3. Creative Commons Attribution 4.0 (CC BY 4.0) — Datasets and Results
+## 2. Ownership
 
-Datasets, figures, and numerical results are licensed under **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
-When reused or cited in derivative works, appropriate reference to:
+The Software, including its source code, algorithms, implementation details, architecture, documentation, and associated materials, remains the intellectual property of Jacob Orellana.
 
-> **Orellana, J. (2025). *Valley Scanner: A Continuous Method for Detecting Zeta Zeros Without Gram Alignment*.**
-
-is **required**.
-
-Full license text: [https://creativecommons.org/licenses/by/4.0/](https://creativecommons.org/licenses/by/4.0/)
-
-Summary of rights:
-
-* You may share (copy and redistribute the material in any medium or format)
-* You may adapt (remix, transform, and build upon the material for any purpose, even commercially)
-* You must give **appropriate credit** and indicate if changes were made
-* No additional legal restrictions may be applied beyond those of CC BY 4.0
+No ownership rights are transferred under this license.
 
 ---
 
-## 4. MIT License (Python Scripts)
+## 3. Permitted Uses
 
-```
-MIT License
-Copyright (c) 2025 Jacob Orellana
+You may:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy  
-of this software and associated documentation files (the "Software"), to deal  
-in the Software without restriction, including without limitation the rights to  
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,  
-and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all  
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF  
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,  
-DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR  
-OTHER DEALINGS IN THE SOFTWARE.
-```
+* View and study the source code.
+* Compile and execute the Software.
+* Use the Software for academic research.
+* Use the Software for educational purposes.
+* Use the Software to reproduce published numerical results.
+* Create modified versions for personal or academic research purposes.
 
 ---
 
-## 5. Citation
+## 4. Mandatory Attribution
 
-If you reference the datasets, visualizations, or results derived from this repository, please cite:
+Any use of the Software, in whole or in part, including derivative works, publications, reports, presentations, datasets, or software implementations derived from the Software, must include clear attribution to the original author.
 
-> **Orellana, J. (2025). *Valley Scanner: A Continuous Method for Detecting Zeta Zeros Without Gram Alignment*.**
-> [https://github.com/zjore/z-research/tree/main](https://github.com/zjore/z-research/tree/main)
+At minimum, the following citation shall be included:
+
+> Orellana, J.
+> Valley Scanner: A Numerical Framework for Exploring the Riemann Zeta Landscape.
+
+When available, the corresponding DOI, repository URL, or published paper should also be cited.
 
 ---
 
-## 6. Contact
+## 5. Derivative Works
 
-For licensing inquiries or collaboration requests, please contact:
-📧 **[jacoboreore@gmail.com](mailto:jacoboreore@gmail.com)**
+Derivative works are permitted for research and educational purposes provided that:
 
+* The original copyright notice is preserved.
+* This license remains attached.
+* All modifications are clearly documented.
+* Attribution to the original author is maintained.
 
+Derivative works must not be presented as the original work.
+
+---
+
+## 6. Restrictions
+
+Without prior written permission from the author, you may not:
+
+* Sell the Software.
+* Offer commercial services based on the Software.
+* Incorporate the Software into commercial products.
+* Redistribute the Software as part of a commercial offering.
+* Remove attribution notices.
+* Misrepresent authorship of the original work.
+* Rebrand the Software as an original independent creation.
+* Use the name "Valley Scanner" to promote derivative products.
+
+---
+
+## 7. Commercial Licensing
+
+Commercial use requires a separate written agreement with the author.
+
+Organizations or individuals wishing to use the Software for commercial purposes should contact the author to obtain a commercial license.
+
+---
+
+## 8. Scientific Integrity
+
+Users are encouraged to publish independent validations, reproductions, critiques, and analyses of the Software.
+
+Such publications must clearly distinguish between:
+
+* Original Valley Scanner results.
+* Independent findings.
+* Modifications introduced by the authors of derivative work.
+
+---
+
+## 9. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NONINFRINGEMENT, OR ACCURACY OF RESULTS.
+
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+---
+
+## 10. Acceptance
+
+By accessing, copying, compiling, modifying, or using the Software, you agree to the terms of this license.
+
+If you do not agree to these terms, you may not use the Software.
