@@ -219,7 +219,8 @@ If you reference the datasets or visualizations, please cite:
 
 ### 📜 License and Usage
 - Core computation binaries and algorithms: **Proprietary — All rights reserved.**
-- Datasets and visualization scripts: **MIT License** (see [LICENSE](https://github.com/zjore/z-research/blob/main/LICENCE.md)).
+- Datasets and visualization scripts: **MIT License** (see [LICENSE](https://github.com/zjore/z-research/blob/main/LICENSE.md)).
+- Core engine: (see [LICENSE](https://github.com/jacoboreore/z/blob/main/LICENSE.md)).
 
 ---
 

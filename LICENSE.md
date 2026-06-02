@@ -2,6 +2,8 @@
 
 Copyright © 2026 Jacob Orellana
 
+
+
 ## 1. Purpose
 
 The Valley Scanner Engine ("Software") is made publicly available to support:
