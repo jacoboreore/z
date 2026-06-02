@@ -43,6 +43,12 @@ In short: **the terrain itself reveals the zeros.**
 * high-t evaluations beyond $t = 10^{20}$ showing numerical stability and precision.
 * Complete datasets and Python tools for reproducibility.
 
+Repositories:
+
+> [Datasets and exploratory tools](https://github.com/zjore/z-research/)
+
+> [Core engine](https://github.com/jacoboreore/z)
+
 ---
 
 ## 🧪 Playground: Visualizing Mountains and Valleys
