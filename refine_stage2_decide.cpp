@@ -11,10 +11,6 @@
 // Usage:
 //   refine_stage2_decision <input_json> <output_json>
 //
-// Notes:
-//   - Uses nlohmann/json for parsing/writing.
-//   - Reuses existing mpfr_to_string(), est_spacing(), CFG() style.
-//   - Hardcoded tolerances for now, to be parameterized later.
 // -----------------------------------------------------------------------------
 
 #include <algorithm>

@@ -35,13 +35,6 @@ Typical flow
       - if action == queue_z_evaluations: loop again
       - otherwise: stop and mark terminal state
 
-Notes
------
-- This script does NOT decide tolerance, Newton acceptance, bracketing, etc.
-- It supports generic requested_points emitted by C++:
-    * 1 point (e.g. mid_bracket)
-    * 3 points (e.g. left1/center/right1)
-    * wider scans, or other future labels
 """
 
 from __future__ import annotations

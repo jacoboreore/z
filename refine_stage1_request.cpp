@@ -6,11 +6,6 @@
 //   Given (job_id, t0), compute initial sampling points for remote Z(t)
 //   evaluation and write them to a JSON file for Python/auditing.
 //
-// Usage:
-//   refine_stage1_request <job_id> <t0> <output_json>
-//
-// Example:
-//   refine_stage1_request job-001 123456789.123 /tmp/refine_stage1_job-001.json
 // -----------------------------------------------------------------------------
 
 #include <algorithm>

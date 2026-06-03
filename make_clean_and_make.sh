@@ -44,7 +44,8 @@ echo "2026"
 echo "03/07 Distributed valley scanner, threaded chunk and serial chunk"
 echo "*/03 - */05  Distributed valley scanner, original z calculations refactor and retrofits"
 echo "*/03 - */05  Distributed valley scanner, distributed refinement"
-echo "01/05  VS-0-0 calculation"
+echo "01/06  VS-0-0 calculation"
+echo "02/06  README and LICENSE. coloquial comments removed"
 
 echo "-------------------------------------------"
 
